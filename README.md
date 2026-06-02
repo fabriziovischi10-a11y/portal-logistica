@@ -1,2 +1,0 @@
-# portal-logistica
-PORTAL LOGISTICA
