@@ -1792,6 +1792,17 @@
   }
 
 
+  /* --- Recorridos de Preventa: chasis y segunda zona en la tabla --- */
+  .rec-chasis {
+    margin-top: 3px;
+    font-size: 11.5px;
+    color: var(--text3);
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .rec-zona2 { margin-left: 4px; }
+  .form-group label .opcional { font-weight: 400; color: var(--text3); text-transform: none; letter-spacing: 0; }
+
   /* ================================================================
      OCT. 2026 — GALERÍA DE FOTOS DE LA FLOTA
      ================================================================ */
@@ -4340,6 +4351,19 @@
             <div class="ac-dropdown" id="rec-f-vehiculo-drop"></div>
           </div>
         </div>
+        <!-- Oct. 2026: chasis/acoplado opcional además del vehículo. Se
+             guarda en r.chasis; NO cuenta en los indicadores de flota
+             (flota usada, prom. flota/día, %), a pedido del usuario. -->
+        <div class="form-group full"><label>Chasis / acoplado <span class="opcional">(opcional)</span></label>
+          <div class="ac-wrap" style="width:100%;">
+            <input class="ac-input" id="rec-f-chasis-search" placeholder="Buscar acoplado o unidad por patente..." autocomplete="off"
+              oninput="genAcSearch(this,'rec-f-chasis-drop','rec-f-chasis','chasis')"
+              onfocus="genAcSearch(this,'rec-f-chasis-drop','rec-f-chasis','chasis')"
+              onkeydown="genAcKeydown(event,'rec-f-chasis-drop','rec-f-chasis')">
+            <input type="hidden" id="rec-f-chasis">
+            <div class="ac-dropdown" id="rec-f-chasis-drop"></div>
+          </div>
+        </div>
         <div class="form-group"><label>KM camión</label><input type="number" id="rec-f-kmCamion" placeholder="135000"></div>
         <div class="form-group full"><label>Personal 1</label>
           <div class="ac-wrap" style="width:100%;">
@@ -4374,6 +4398,13 @@
         <div class="form-group full"><label>Zona</label>
           <select id="rec-f-zona" onchange="recAutoZona()" style="background:#fff;border:1.5px solid #dde1e9;border-radius:6px;padding:9px 12px;color:var(--text);font-family:'IBM Plex Sans',sans-serif;font-size:13px;outline:none;">
             <option value="">Seleccionar zona...</option>
+          </select>
+        </div>
+        <!-- Oct. 2026: segunda zona opcional (r.zona2). Al elegirla, lugares
+             se juntan y los km de las dos zonas se suman (recAutoZona). -->
+        <div class="form-group full"><label>Zona 2 <span class="opcional">(opcional)</span></label>
+          <select id="rec-f-zona2" onchange="recAutoZona()" style="background:#fff;border:1.5px solid #dde1e9;border-radius:6px;padding:9px 12px;color:var(--text);font-family:'IBM Plex Sans',sans-serif;font-size:13px;outline:none;">
+            <option value="">Sin segunda zona</option>
           </select>
         </div>
         <div class="form-group full"><label>Lugares</label>
@@ -11489,7 +11520,22 @@ const genAcFocusIdx = {};
 function genAcGetList(tipo) {
   if (tipo === 'personal') return CFG_PERSONAL.length ? CFG_PERSONAL : REC_PERSONAL;
   if (tipo === 'vehiculo') return CFG_FLOTA.length ? CFG_FLOTA : REC_FLOTA;
+  if (tipo === 'chasis') return recListaChasis();
   return [];
+}
+// Lista para "Chasis / acoplado" de Recorridos de Preventa (oct. 2026):
+// primero los acoplados de Vencimientos de Flota (FV_DATA, que NO están en
+// la flota de Configuración), con el mismo formato "(PATENTE) DESCRIPCION"
+// que los vehículos, y después toda la flota, sin repetir patentes.
+function recListaChasis() {
+  const norm = s => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const flota = CFG_FLOTA.length ? CFG_FLOTA : REC_FLOTA;
+  const enFlota = new Set(flota.map(v => norm((String(v).match(/\(([^)]+)\)/) || [])[1])));
+  const acoplados = (typeof FV_DATA !== 'undefined' ? FV_DATA : [])
+    .filter(v => /ACOPLADO|SEMI|CHASIS/i.test(v.desc || '') || /^AC\d/i.test(v.id || ''))
+    .filter(v => !enFlota.has(norm(v.dom)))
+    .map(v => `(${v.dom}) ${v.desc}`);
+  return [...acoplados, ...flota];
 }
 function genAcSearch(inputEl, dropId, hiddenId, tipo) {
   const q = inputEl.value.trim().toLowerCase();
@@ -13896,7 +13942,8 @@ function exportarExcel() {
 
   if (typeof recTodosLosItems === 'function') {
     const rowsRec = recTodosLosItems().map(r => ({
-      Fecha: r.fechaReal||'', Zona: r.zona||'', Vehiculo: r.vehiculo||'',
+      Fecha: r.fechaReal||'', Zona: r.zona||'', 'Zona 2': r.zona2||'', Vehiculo: r.vehiculo||'',
+      Chasis: r.chasis||'',
       'Km camion': r.kmCamion||0, 'Km ruta': r.kmRuta||0, Valor: r.valor||0,
     }));
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rowsRec), 'Recorridos');
@@ -15153,12 +15200,12 @@ function recRenderTabla() {
     <tr>
       <td><span class="badge badge-blue">${i+1}</span></td>
       <td style="font-family:'IBM Plex Mono',monospace;font-size:12px;">${r.horaIda||'—'}</td>
-      <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;" title="${r.vehiculo}">${r.vehiculo||'—'}</td>
+      <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;" title="${r.vehiculo}${r.chasis ? ' + ' + r.chasis : ''}">${r.vehiculo||'—'}${r.chasis ? `<div class="rec-chasis">+ ${r.chasis}</div>` : ''}</td>
       <td style="font-family:'IBM Plex Mono',monospace;font-size:12px;">${r.kmCamion ? Number(r.kmCamion).toLocaleString('es-AR') : '—'}</td>
       <td style="font-size:12px;">${r.p1||'—'}</td>
       <td style="font-size:12px;">${r.p2||'—'}</td>
       <td style="font-size:12px;">${r.p3||'—'}</td>
-      <td><span class="badge badge-green" style="white-space:nowrap;">${r.zona||'—'}</span></td>
+      <td><span class="badge badge-green" style="white-space:nowrap;">${r.zona||'—'}</span>${r.zona2 ? `<span class="badge badge-green rec-zona2" style="white-space:nowrap;">${r.zona2}</span>` : ''}</td>
       <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;" title="${r.lugares}">${r.lugares||'—'}</td>
       <td style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--accent2);">${r.valor ? '$'+Number(r.valor).toLocaleString('es-AR') : '—'}</td>
       <td style="font-family:'IBM Plex Mono',monospace;font-size:12px;">${r.kmRuta ? r.kmRuta+' km' : '—'}</td>
@@ -15184,13 +15231,14 @@ function recCerrarModal(e) {
 }
 function recLimpiarModal() {
   ['rec-f-horaIda','rec-f-horaVuelta','rec-f-kmCamion','rec-f-kmRuta',
-   'rec-f-zona','rec-f-lugares','rec-f-valor']
+   'rec-f-zona','rec-f-zona2','rec-f-lugares','rec-f-valor']
   .forEach(id => {
     const el = document.getElementById(id);
     if (el.tagName === 'SELECT') el.selectedIndex = 0;
     else el.value = '';
   });
   genAcClear('rec-f-vehiculo-search', 'rec-f-vehiculo', 'rec-f-vehiculo-drop');
+  genAcClear('rec-f-chasis-search', 'rec-f-chasis', 'rec-f-chasis-drop');
   genAcClear('rec-f-p1-search', 'rec-f-p1', 'rec-f-p1-drop');
   genAcClear('rec-f-p2-search', 'rec-f-p2', 'rec-f-p2-drop');
   genAcClear('rec-f-p3-search', 'rec-f-p3', 'rec-f-p3-drop');
@@ -15207,12 +15255,14 @@ function recEditarRecorrido(i) {
   setVal('rec-f-horaIda',    r.horaIda);
   setVal('rec-f-horaVuelta', r.horaVuelta);
   genAcSetValue('rec-f-vehiculo-search', 'rec-f-vehiculo', r.vehiculo);
+  genAcSetValue('rec-f-chasis-search', 'rec-f-chasis', r.chasis);
   setVal('rec-f-kmCamion',   r.kmCamion);
   setVal('rec-f-kmRuta',     r.kmRuta);
   genAcSetValue('rec-f-p1-search', 'rec-f-p1', r.p1);
   genAcSetValue('rec-f-p2-search', 'rec-f-p2', r.p2);
   genAcSetValue('rec-f-p3-search', 'rec-f-p3', r.p3);
   setVal('rec-f-zona',       r.zona);
+  setVal('rec-f-zona2',      r.zona2);
   setVal('rec-f-lugares',    r.lugares);
   setVal('rec-f-valor',      r.valor);
   document.getElementById('rec-edit-index').value = i;
@@ -15225,15 +15275,19 @@ function recGuardarRecorrido() {
     horaIda:    document.getElementById('rec-f-horaIda').value,
     horaVuelta: document.getElementById('rec-f-horaVuelta').value,
     vehiculo:   document.getElementById('rec-f-vehiculo').value,
+    chasis:     document.getElementById('rec-f-chasis').value,
     kmCamion:   document.getElementById('rec-f-kmCamion').value,
     kmRuta:     document.getElementById('rec-f-kmRuta').value,
     p1:         document.getElementById('rec-f-p1').value,
     p2:         document.getElementById('rec-f-p2').value,
     p3:         document.getElementById('rec-f-p3').value,
     zona:       document.getElementById('rec-f-zona').value,
+    zona2:      document.getElementById('rec-f-zona2').value,
     lugares:    document.getElementById('rec-f-lugares').value,
     valor:      document.getElementById('rec-f-valor').value,
   };
+  // La zona 2 igual a la 1 no aporta nada: se descarta
+  if (r.zona2 && r.zona2 === r.zona) r.zona2 = '';
 
   const editIdx = parseInt(document.getElementById('rec-edit-index').value);
   const isEdit  = editIdx >= 0;
@@ -15518,25 +15572,33 @@ function cfgSave(tipo) {
 }
 
 // ── auto-fill zona fields ─────────────────────────────────────────────────────
+// Oct. 2026: hasta dos zonas por recorrido. Lugares = los de las dos zonas
+// juntos ("A / B") y KM ruta = suma de los km de ambas (decisión del
+// usuario). Los dos campos se pueden seguir corrigiendo a mano.
 function recAutoZona() {
-  const sel = document.getElementById('rec-f-zona');
-  const z = CFG_ZONAS.find(z => z.nombre === sel.value);
-  if (!z) return;
-  document.getElementById('rec-f-lugares').value = z.lugares || '';
-  document.getElementById('rec-f-kmRuta').value  = z.km || '';
+  const buscar = id => CFG_ZONAS.find(z => z.nombre === document.getElementById(id).value);
+  const zonas = [buscar('rec-f-zona'), buscar('rec-f-zona2')].filter(Boolean);
+  if (zonas.length === 2 && zonas[0] === zonas[1]) zonas.pop();
+  if (!zonas.length) return;
+  document.getElementById('rec-f-lugares').value = zonas.map(z => z.lugares).filter(Boolean).join(' / ');
+  const km = zonas.reduce((s, z) => s + (Number(z.km) || 0), 0);
+  document.getElementById('rec-f-kmRuta').value = km || '';
 }
 
-// ── populate zona select in modal ─────────────────────────────────────────────
+// ── populate zona selects in modal (zona 1 y zona 2) ─────────────────────────
 function recPoblarZonaSelect() {
-  const sel = document.getElementById('rec-f-zona');
-  const cur = sel.value;
-  sel.innerHTML = '<option value="">Seleccionar zona...</option>';
-  CFG_ZONAS.forEach(z => {
-    const o = document.createElement('option');
-    o.value = o.textContent = z.nombre;
-    sel.appendChild(o);
+  [['rec-f-zona', 'Seleccionar zona...'], ['rec-f-zona2', 'Sin segunda zona']].forEach(([id, vacio]) => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    const cur = sel.value;
+    sel.innerHTML = `<option value="">${vacio}</option>`;
+    CFG_ZONAS.forEach(z => {
+      const o = document.createElement('option');
+      o.value = o.textContent = z.nombre;
+      sel.appendChild(o);
+    });
+    sel.value = cur;
   });
-  sel.value = cur;
 }
 
 // ============================
