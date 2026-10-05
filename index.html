@@ -1688,6 +1688,353 @@
     [title="Sistema activo"]::after { animation: none; }
   }
 
+
+  /* ================================================================
+     OCT. 2026 (3ra ronda) — TARJETAS INTERACTIVAS + AMARILLO PORTAL
+     El amarillo de marca (#FED501) se usa como acento mínimo: lo que el
+     cursor toca, el título de cada sección y el foco del teclado. No se
+     usa para estados (rojo/verde siguen siendo vencido/ok).
+     ================================================================ */
+  :root {
+    --portal-amarillo: #FED501;
+    --amarillo-suave: oklch(0.88 0.17 95 / .1);
+    --amarillo-borde: oklch(0.88 0.17 95 / .5);
+  }
+
+  /* --- Tarjetas chicas (clickeables): se levantan, se encienden donde
+     está el cursor y una línea amarilla corre por el borde de arriba --- */
+  .panel:not(#panel-kpi) :is(.stat-card, .bi-stat-card, .dash-mini-donut) {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+    transition: transform .28s var(--ease-out), border-color .25s ease, box-shadow .28s var(--ease-out);
+  }
+  /* La franja de color de 4px a la izquierda (color de cada rubro) ya
+     vive en el minigráfico; el borde vuelve a ser parejo. */
+  .bi-stat-card { border-left-width: 1px; border-left-color: var(--border); }
+  .panel:not(#panel-kpi) .card { isolation: isolate; }
+  .panel:not(#panel-kpi) :is(.stat-card, .bi-stat-card, .dash-mini-donut)::before,
+  .panel:not(#panel-kpi) .card::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    pointer-events: none;
+    background: radial-gradient(280px circle at var(--mx, 50%) var(--my, -40%), var(--amarillo-suave), transparent 70%);
+    opacity: 0;
+    transition: opacity .3s ease;
+  }
+  .panel:not(#panel-kpi) :is(.stat-card, .bi-stat-card, .dash-mini-donut)::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--portal-amarillo), oklch(0.88 0.17 95 / 0));
+    transform: scaleX(0);
+    transform-origin: left center;
+    transition: transform .35s var(--ease-out);
+    pointer-events: none;
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .panel:not(#panel-kpi) :is(.stat-card, .bi-stat-card, .dash-mini-donut):hover {
+      transform: translateY(-3px);
+      border-color: var(--amarillo-borde);
+      box-shadow: inset 0 1px 0 oklch(1 0 0 / .05), 0 2px 4px oklch(0 0 0 / .3), 0 18px 34px -18px oklch(0 0 0 / .85);
+    }
+    .panel:not(#panel-kpi) :is(.stat-card, .bi-stat-card, .dash-mini-donut):hover::before,
+    .panel:not(#panel-kpi) .card:hover::after { opacity: 1; }
+    .panel:not(#panel-kpi) :is(.stat-card, .bi-stat-card, .dash-mini-donut):hover::after { transform: scaleX(1); }
+    /* El número da un pequeño paso hacia arriba al pasar el cursor */
+    .panel:not(#panel-kpi) :is(.stat-card, .bi-stat-card) :is(.stat-value, .bi-stat-value) { transition: transform .28s var(--ease-out), color .25s ease; }
+    .panel:not(#panel-kpi) :is(.stat-card, .bi-stat-card):hover :is(.stat-value, .bi-stat-value) { transform: translateY(-1px); }
+    /* Tarjetas grandes (tablas, gráficos): no se mueven — mover la tabla
+       con la que estás trabajando molestaría —, solo se encienden. */
+    .panel:not(#panel-kpi) .card:hover { border-color: oklch(0.88 0.17 95 / .22); }
+  }
+  .panel:not(#panel-kpi) :is(.stat-card, .bi-stat-card, .dash-mini-donut):active { transform: translateY(-1px) scale(.985); transition-duration: .12s; }
+
+  /* --- Detalles en amarillo --- */
+  /* Firma bajo el título de cada sección (se dibuja al entrar) */
+  .panel:not(#panel-kpi) > :first-child > .section-title::after {
+    content: "";
+    display: block;
+    width: 34px;
+    height: 3px;
+    margin-top: 12px;
+    border-radius: 3px;
+    background: var(--portal-amarillo);
+    transform-origin: left center;
+  }
+  .panel.anim-in > :first-child > .section-title::after { animation: lineaTitulo .5s var(--ease-out) .3s both; }
+  @keyframes lineaTitulo { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+  /* Título de cada tarjeta: el puntito pasa a amarillo cuando el cursor está encima */
+  .card-title .dot { transition: background-color .25s ease, transform .25s var(--ease-out); }
+  @media (hover: hover) and (pointer: fine) {
+    .panel:not(#panel-kpi) .card:hover > .card-title .dot { background: var(--portal-amarillo) !important; transform: scale(1.3); }
+    /* Menú: la pestaña bajo el cursor muestra un filo amarillo */
+    .tab:not(.active) { box-shadow: inset 0 0 0 0 var(--portal-amarillo); transition: color .15s ease, background-color .15s ease, box-shadow .2s var(--ease-out); }
+    .tab:not(.active):hover { box-shadow: inset 2px 0 0 0 oklch(0.88 0.17 95 / .7); }
+  }
+  /* Período elegido en los filtros de fecha */
+  [data-theme="dark"] .dash-periodo-btn.active { box-shadow: inset 0 -2px 0 var(--portal-amarillo) !important; }
+  .dash-periodo-btn.active { box-shadow: inset 0 -2px 0 var(--portal-amarillo); }
+  /* Selección de texto y foco del teclado con el amarillo de marca */
+  ::selection { background: oklch(0.88 0.17 95 / .32); }
+  :focus-visible { outline-color: var(--portal-amarillo); }
+  /* Intro: la línea que carga bajo el logo, en amarillo */
+  .intro-bar::after { background: linear-gradient(90deg, var(--portal-red), var(--portal-amarillo)); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .panel:not(#panel-kpi) :is(.stat-card, .bi-stat-card, .dash-mini-donut):hover { transform: none; }
+  }
+
+
+  /* ================================================================
+     OCT. 2026 — GALERÍA DE FOTOS DE LA FLOTA
+     ================================================================ */
+  /* Patente clickeable en las tablas de Vencimientos (VTV y SENASA) */
+  .patente-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 6px;
+    margin: -3px -6px;
+    border: 0;
+    border-radius: 6px;
+    background: none;
+    color: inherit;
+    font: 700 13px/1.2 'IBM Plex Mono', monospace;
+    letter-spacing: .5px;
+    cursor: pointer;
+    text-decoration: underline dotted oklch(1 0 0 / .3);
+    text-underline-offset: 4px;
+    transition: background-color .15s ease, color .15s ease;
+  }
+  :root:not([data-theme="dark"]) .patente-btn { text-decoration-color: oklch(0 0 0 / .3); }
+  /* Ícono de cámara solo en los vehículos que ya tienen fotos */
+  .patente-btn.tiene-fotos::after {
+    content: "";
+    width: 14px;
+    height: 14px;
+    background: var(--portal-amarillo);
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M5.5 2.5h5l1 1.5H14a1 1 0 0 1 1 1v7.5a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h2.5z' fill='none' stroke='black' stroke-width='1.4' stroke-linejoin='round'/%3E%3Ccircle cx='8' cy='8.5' r='2.4' fill='none' stroke='black' stroke-width='1.4'/%3E%3C/svg%3E") center / contain no-repeat;
+            mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M5.5 2.5h5l1 1.5H14a1 1 0 0 1 1 1v7.5a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h2.5z' fill='none' stroke='black' stroke-width='1.4' stroke-linejoin='round'/%3E%3Ccircle cx='8' cy='8.5' r='2.4' fill='none' stroke='black' stroke-width='1.4'/%3E%3C/svg%3E") center / contain no-repeat;
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .patente-btn:hover { background: oklch(0.88 0.17 95 / .14); color: var(--text); text-decoration-color: var(--portal-amarillo); }
+  }
+  .patente-btn:active { transform: scale(.97); }
+
+  /* Ventana */
+  dialog.galeria {
+    width: min(1040px, calc(100vw - 32px));
+    max-height: calc(100dvh - 32px);
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: 0 30px 80px -20px oklch(0 0 0 / .8);
+    overflow: hidden;
+    display: none;
+    flex-direction: column;
+  }
+  dialog.galeria[open] {
+    display: flex;
+    animation: galeriaIn .28s var(--ease-out);
+  }
+  dialog.galeria::backdrop {
+    background: oklch(0.1 0.02 262 / .72);
+    -webkit-backdrop-filter: blur(4px);
+    backdrop-filter: blur(4px);
+    animation: fadeIn .25s ease;
+  }
+  @keyframes galeriaIn { from { opacity: 0; transform: scale(.96) translateY(8px); } to { opacity: 1; transform: none; } }
+  dialog.galeria [hidden] { display: none !important; }
+
+  .galeria-head {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 16px 14px 18px;
+    border-bottom: 1px solid var(--border);
+  }
+  /* La patente dibujada como chapa Mercosur argentina */
+  .placa {
+    flex-shrink: 0;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: stretch;
+    min-width: 132px;
+    border: 2px solid #1b1b1b;
+    border-radius: 7px;
+    background: #fff;
+    color: #111;
+    overflow: hidden;
+    box-shadow: 0 2px 6px oklch(0 0 0 / .35);
+  }
+  .placa-pais {
+    padding: 2px 6px 1px;
+    background: #1d4f9c;
+    color: #fff;
+    font: 700 7.5px/1.2 'IBM Plex Sans', sans-serif;
+    letter-spacing: .14em;
+    text-align: center;
+  }
+  .placa-num {
+    padding: 3px 10px 4px;
+    font: 700 20px/1.1 'IBM Plex Mono', monospace;
+    letter-spacing: .08em;
+    text-align: center;
+  }
+  .galeria-desc {
+    flex: 1;
+    min-width: 0;
+    font-size: 13.5px;
+    font-weight: 500;
+    color: var(--text2);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .galeria-agregar { cursor: pointer; white-space: nowrap; }
+  .galeria-agregar.subiendo { opacity: .6; pointer-events: none; }
+  .galeria-cerrar {
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    background: transparent;
+    color: var(--text2);
+    cursor: pointer;
+    transition: background-color .15s ease, color .15s ease, transform .12s var(--ease-out);
+  }
+  .galeria-cerrar svg { width: 14px; height: 14px; }
+  .galeria-cerrar:active { transform: scale(.94); }
+  @media (hover: hover) and (pointer: fine) { .galeria-cerrar:hover { background: oklch(1 0 0 / .08); color: var(--text); } }
+
+  .galeria-escena {
+    position: relative;
+    flex: 1;
+    min-height: 260px;
+    display: grid;
+    place-items: center;
+    padding: 14px 60px;
+    background: oklch(0.13 0.02 262);
+    touch-action: pan-y;
+    overflow: hidden;
+  }
+  .galeria-foto { margin: 0; display: grid; place-items: center; }
+  .galeria-foto img {
+    display: block;
+    max-width: 100%;
+    max-height: min(62dvh, 640px);
+    border-radius: 10px;
+    object-fit: contain;
+    user-select: none;
+    -webkit-user-drag: none;
+  }
+  /* Cambio de foto: entra desde el lado hacia donde avanzaste */
+  .galeria-foto.entrando img { animation: fotoIn .32s var(--ease-out); }
+  @keyframes fotoIn { from { opacity: 0; transform: translateX(calc(var(--dir, 0) * 28px)) scale(.985); } to { opacity: 1; transform: none; } }
+  .galeria-nav {
+    position: absolute;
+    top: 50%;
+    width: 42px;
+    height: 42px;
+    margin-top: -21px;
+    display: grid;
+    place-items: center;
+    border: 1px solid oklch(1 0 0 / .14);
+    border-radius: 50%;
+    background: oklch(0.15 0.03 262 / .7);
+    color: #fff;
+    cursor: pointer;
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+    transition: background-color .15s ease, transform .12s var(--ease-out), border-color .15s ease;
+    z-index: 1;
+  }
+  .galeria-nav svg { width: 16px; height: 16px; }
+  .galeria-nav.prev { left: 12px; }
+  .galeria-nav.next { right: 12px; }
+  .galeria-nav:active { transform: scale(.92); }
+  @media (hover: hover) and (pointer: fine) {
+    .galeria-nav:hover { background: oklch(0.15 0.03 262 / .9); border-color: var(--portal-amarillo); }
+  }
+  .galeria-contador {
+    position: absolute;
+    left: 50%;
+    bottom: 22px;
+    transform: translateX(-50%);
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: oklch(0.12 0.02 262 / .75);
+    color: #fff;
+    font: 600 12px/1.4 'IBM Plex Mono', monospace;
+  }
+  .galeria-vacio, .galeria-cargando { text-align: center; color: var(--text2); font-size: 14px; }
+  .galeria-vacio .sub { margin-top: 6px; font-size: 12.5px; color: var(--text3); }
+  .galeria-cargando {
+    width: min(520px, 80%);
+    aspect-ratio: 16 / 10;
+    display: grid;
+    place-items: center;
+    border-radius: 10px;
+    background: linear-gradient(100deg, oklch(1 0 0 / .03) 30%, oklch(1 0 0 / .08) 50%, oklch(1 0 0 / .03) 70%) 0 0 / 200% 100%;
+    animation: brillo 1.2s linear infinite;
+  }
+  @keyframes brillo { to { background-position: -200% 0; } }
+
+  .galeria-tiras {
+    display: flex;
+    gap: 8px;
+    padding: 12px 16px 14px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x proximity;
+    overscroll-behavior: contain;
+    border-top: 1px solid var(--border);
+  }
+  .galeria-tiras:empty { display: none; }
+  .galeria-tiras button {
+    flex: 0 0 auto;
+    width: 84px;
+    height: 60px;
+    padding: 0;
+    border: 2px solid transparent;
+    border-radius: 8px;
+    overflow: hidden;
+    background: oklch(0.13 0.02 262);
+    cursor: pointer;
+    opacity: .55;
+    scroll-snap-align: start;
+    transition: opacity .15s ease, border-color .15s ease, transform .12s var(--ease-out);
+    animation: rise .3s var(--ease-out) both;
+    animation-delay: calc(var(--d, 0) * 40ms);
+  }
+  .galeria-tiras button img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .galeria-tiras button[aria-current="true"] { opacity: 1; border-color: var(--portal-amarillo); }
+  .galeria-tiras button:active { transform: scale(.95); }
+  @media (hover: hover) and (pointer: fine) { .galeria-tiras button:hover { opacity: .9; } }
+
+  @media (max-width: 640px) {
+    dialog.galeria { width: 100vw; max-width: 100vw; max-height: 100dvh; height: 100dvh; border-radius: 0; border: 0; }
+    .galeria-head { flex-wrap: wrap; gap: 10px; padding: 12px; padding-top: max(12px, env(safe-area-inset-top)); }
+    .galeria-desc { order: 3; flex-basis: 100%; white-space: normal; }
+    .galeria-agregar { margin-left: auto; }
+    .galeria-escena { padding: 10px; }
+    .galeria-nav { display: none; }
+    .galeria-foto img { max-height: 58dvh; }
+    .galeria-tiras { padding-bottom: max(14px, env(safe-area-inset-bottom)); }
+  }
+
   /* --- Celular y tablet (≤ 860px) --- */
   @media (max-width: 860px) {
     body { background-attachment: scroll; }
@@ -13770,7 +14117,7 @@ function fvRender() {
       const vtvFmt = v.vtv ? v.vtv.replace(/(\d{4})-(\d{2})-(\d{2})/,'$3/$2/$1') : '—';
       return `<tr style="background:${v.estado==='vencido'?'rgba(192,57,43,0.04)':v.estado==='urgente'?'rgba(192,57,43,0.02)':''}">
         <td><span class="badge badge-blue" style="font-family:'IBM Plex Mono',monospace;">${v.id}</span></td>
-        <td style="font-weight:700;font-family:'IBM Plex Mono',monospace;letter-spacing:.5px;">${v.dom}</td>
+        <td><button type="button" class="patente-btn" onclick="flotaGaleriaAbrir(this.dataset.patente, this.dataset.desc)" data-patente="${v.dom}" data-desc="${String(v.desc || '').replace(/"/g, '&quot;')}" title="Ver fotos del vehículo">${v.dom}</button></td>
         <td style="font-size:12px;color:var(--text);">${v.desc}</td>
         <td style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text2);">${ultServFmt}</td>
         <td style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--text2);">${v.proxKm ? Number(v.proxKm).toLocaleString('es-AR') + ' km' : '—'}</td>
@@ -14200,7 +14547,7 @@ function snRender() {
       const vtoFmt = v.vto ? v.vto.replace(/(\d{4})-(\d{2})-(\d{2})/,'$3/$2/$1') : '—';
       return `<tr style="background:${v.estado==='vencido'?'rgba(192,57,43,0.04)':v.estado==='urgente'?'rgba(192,57,43,0.02)':''}">
         <td><span class="badge badge-green" style="font-family:'IBM Plex Mono',monospace;">${v.id}</span></td>
-        <td style="font-weight:700;font-family:'IBM Plex Mono',monospace;letter-spacing:.5px;">${v.dom}</td>
+        <td><button type="button" class="patente-btn" onclick="flotaGaleriaAbrir(this.dataset.patente, this.dataset.desc)" data-patente="${v.dom}" data-desc="${String(v.desc || '').replace(/"/g, '&quot;')}" title="Ver fotos del vehículo">${v.dom}</button></td>
         <td style="font-size:12px;color:var(--text);">${v.desc}</td>
         <td style="font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:${v.dias!==null&&v.dias<=30?'700':'400'};color:${v.dias!==null&&v.dias<=30?'var(--portal-red)':'var(--text)'};">${vtoFmt}</td>
         <td>${diasCell}</td>
@@ -21186,6 +21533,189 @@ function enviosRenderDonut(canvasId, legendId, unidadesSuc, unidadesPrev) {
   new MutationObserver(reubicar).observe(tabBar, { subtree: true, attributes: true, attributeFilter: ['class'] });
   window.addEventListener('resize', moverIndicador);
   requestAnimationFrame(() => { moverIndicador(); requestAnimationFrame(() => ind.classList.remove('no-anim')); });
+
+  // --- Luz que sigue al cursor dentro de cada tarjeta (3ra ronda) ------
+  // Escribe --mx/--my en la tarjeta bajo el cursor (no en un contenedor,
+  // para no recalcular estilos de todos los hijos), una vez por cuadro.
+  if (window.matchMedia('(hover: hover) and (pointer: fine)').matches) {
+    const TARJETAS = '.stat-card, .bi-stat-card, .dash-mini-donut, .card';
+    let pendiente = null;
+    document.querySelector('.main').addEventListener('pointermove', e => {
+      const card = e.target.closest?.(TARJETAS);
+      if (!card || card.closest('#panel-kpi')) return;
+      const primero = !pendiente;
+      pendiente = { card, x: e.clientX, y: e.clientY };
+      if (primero) requestAnimationFrame(() => {
+        const { card: c, x, y } = pendiente; pendiente = null;
+        const r = c.getBoundingClientRect();
+        c.style.setProperty('--mx', (x - r.left) + 'px');
+        c.style.setProperty('--my', (y - r.top) + 'px');
+      });
+    }, { passive: true });
+  }
+
+  // ================================================================
+  // GALERÍA DE FOTOS DE LA FLOTA (Vencimientos de Flota → clic en patente)
+  // Fotos en Firebase: flota_fotos/{PATENTE}/{id} = {data, orden, nombre, w, h}
+  // e índice liviano flota_fotos_index/{PATENTE} = cantidad, para marcar en
+  // la tabla qué vehículos tienen fotos sin bajar las imágenes. Las fotos se
+  // descargan recién al abrir la galería de ese vehículo (y quedan en memoria).
+  // ================================================================
+  const flotaKey = s => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const fotosCache = new Map();
+  let fotosIndice = {};
+  const marcarPatentes = () => document.querySelectorAll('.patente-btn').forEach(b => {
+    const n = fotosIndice[flotaKey(b.dataset.patente)] || 0;
+    b.classList.toggle('tiene-fotos', n > 0);
+    b.title = n ? `Ver ${n} foto${n !== 1 ? 's' : ''} del vehículo` : 'Sin fotos todavía: clic para agregar';
+  });
+  if (typeof db !== 'undefined') {
+    db.ref('flota_fotos_index').on('value', s => { fotosIndice = s.val() || {}; marcarPatentes(); });
+  }
+  new MutationObserver(marcarPatentes).observe(document.getElementById('panel-flota-venc'), { childList: true, subtree: true });
+
+  const dlg = document.createElement('dialog');
+  dlg.className = 'galeria';
+  dlg.setAttribute('aria-labelledby', 'galeria-titulo');
+  dlg.innerHTML = `
+    <header class="galeria-head">
+      <div class="placa" id="galeria-titulo"><span class="placa-pais">REPÚBLICA ARGENTINA</span><span class="placa-num"></span></div>
+      <p class="galeria-desc"></p>
+      <label class="btn btn-ghost btn-sm galeria-agregar">
+        <input type="file" accept="image/*" multiple hidden> + Agregar fotos
+      </label>
+      <button type="button" class="galeria-cerrar" aria-label="Cerrar galería">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </button>
+    </header>
+    <div class="galeria-escena">
+      <button type="button" class="galeria-nav prev" aria-label="Foto anterior"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3L5 8l5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <figure class="galeria-foto"><img alt=""></figure>
+      <button type="button" class="galeria-nav next" aria-label="Foto siguiente"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3l5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <div class="galeria-vacio" hidden>
+        <p>Todavía no hay fotos de este vehículo.</p>
+        <p class="sub">Usá “+ Agregar fotos” para subir las primeras.</p>
+      </div>
+      <div class="galeria-cargando" hidden aria-live="polite">Cargando fotos…</div>
+      <span class="galeria-contador" aria-live="polite"></span>
+    </div>
+    <div class="galeria-tiras" role="list"></div>`;
+  document.body.append(dlg);
+  const $g = sel => dlg.querySelector(sel);
+  const img = $g('.galeria-foto img'), tiras = $g('.galeria-tiras');
+  let fotos = [], idx = 0, patenteActual = '';
+
+  const mostrar = (i, dir = 0) => {
+    if (!fotos.length) return;
+    idx = (i + fotos.length) % fotos.length;
+    const f = fotos[idx];
+    const fig = $g('.galeria-foto');
+    fig.style.setProperty('--dir', dir);
+    fig.classList.remove('entrando'); void fig.offsetWidth;
+    img.src = f.data;
+    img.alt = `Foto ${idx + 1} de ${fotos.length} del vehículo ${patenteActual}`;
+    if (dir && !sinMovimiento) fig.classList.add('entrando');
+    $g('.galeria-contador').textContent = `${idx + 1} / ${fotos.length}`;
+    tiras.querySelectorAll('button').forEach((b, j) => b.setAttribute('aria-current', j === idx ? 'true' : 'false'));
+    tiras.children[idx]?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: sinMovimiento ? 'auto' : 'smooth' });
+  };
+  const pintar = () => {
+    const hay = fotos.length > 0;
+    $g('.galeria-vacio').hidden = hay;
+    $g('.galeria-foto').hidden = !hay;
+    dlg.querySelectorAll('.galeria-nav').forEach(b => b.hidden = fotos.length < 2);
+    $g('.galeria-contador').hidden = !hay;
+    tiras.innerHTML = fotos.map((f, j) =>
+      `<button type="button" role="listitem" aria-label="Ver foto ${j + 1}" style="--d:${j}"><img src="${f.data}" alt="" loading="lazy"></button>`).join('');
+    tiras.querySelectorAll('button').forEach((b, j) => b.addEventListener('click', () => mostrar(j, j > idx ? 1 : -1)));
+    if (hay) mostrar(Math.min(idx, fotos.length - 1));
+  };
+  const cargar = async key => {
+    if (fotosCache.has(key)) return fotosCache.get(key);
+    const snap = await db.ref('flota_fotos/' + key).once('value');
+    const lista = Object.values(snap.val() || {}).sort((a, b) => (a.orden || 0) - (b.orden || 0));
+    fotosCache.set(key, lista);
+    return lista;
+  };
+  window.flotaGaleriaAbrir = async (patente, desc) => {
+    patenteActual = patente;
+    const key = flotaKey(patente);
+    $g('.placa-num').textContent = patente;
+    $g('.galeria-desc').textContent = desc || '';
+    fotos = []; idx = 0;
+    pintar();
+    $g('.galeria-vacio').hidden = true;
+    $g('.galeria-cargando').hidden = fotosCache.has(key);
+    dlg.showModal();
+    try { fotos = await cargar(key); }
+    catch (e) { fotos = []; toast('No se pudieron cargar las fotos. Revisá la conexión.', 'error'); }
+    if (flotaKey(patenteActual) !== key) return; // se abrió otra mientras cargaba
+    $g('.galeria-cargando').hidden = true;
+    pintar();
+  };
+  const cerrar = () => dlg.close();
+  $g('.galeria-cerrar').addEventListener('click', cerrar);
+  $g('.galeria-nav.prev').addEventListener('click', () => mostrar(idx - 1, -1));
+  $g('.galeria-nav.next').addEventListener('click', () => mostrar(idx + 1, 1));
+  dlg.addEventListener('click', e => { if (e.target === dlg) cerrar(); }); // clic en el fondo
+  dlg.addEventListener('keydown', e => {
+    if (e.key === 'ArrowLeft') { e.preventDefault(); mostrar(idx - 1, -1); }
+    if (e.key === 'ArrowRight') { e.preventDefault(); mostrar(idx + 1, 1); }
+  });
+  // Deslizar con el dedo: alcanza con un gesto rápido, no hace falta recorrer mucho
+  let x0 = null, t0 = 0;
+  const escena = $g('.galeria-escena');
+  escena.addEventListener('pointerdown', e => { if (e.pointerType !== 'mouse') { x0 = e.clientX; t0 = performance.now(); } });
+  escena.addEventListener('pointerup', e => {
+    if (x0 === null) return;
+    const dx = e.clientX - x0, v = Math.abs(dx) / (performance.now() - t0);
+    x0 = null;
+    if (Math.abs(dx) > 60 || v > 0.11) mostrar(idx + (dx < 0 ? 1 : -1), dx < 0 ? 1 : -1);
+  });
+
+  // Agregar fotos desde el portal: se achican en el navegador (lado mayor
+  // 1400 px, JPEG 0.72) antes de guardarlas, igual que las cargadas al inicio.
+  const comprimir = file => new Promise((res, rej) => {
+    const url = URL.createObjectURL(file), im = new Image();
+    im.onload = () => {
+      const k = Math.min(1, 1400 / Math.max(im.naturalWidth, im.naturalHeight));
+      const c = document.createElement('canvas');
+      c.width = Math.round(im.naturalWidth * k); c.height = Math.round(im.naturalHeight * k);
+      c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      res({ data: c.toDataURL('image/jpeg', 0.72), w: c.width, h: c.height });
+    };
+    im.onerror = () => { URL.revokeObjectURL(url); rej(new Error('imagen')); };
+    im.src = url;
+  });
+  $g('.galeria-agregar input').addEventListener('change', async e => {
+    const files = [...e.target.files]; e.target.value = '';
+    if (!files.length) return;
+    const key = flotaKey(patenteActual);
+    const label = $g('.galeria-agregar');
+    label.classList.add('subiendo');
+    try {
+      const base = Date.now(), updates = {}, nuevas = [];
+      for (let i = 0; i < files.length; i++) {
+        const f = await comprimir(files[i]);
+        const foto = { ...f, orden: base + i, nombre: files[i].name, subida: new Date().toISOString() };
+        updates[`flota_fotos/${key}/${base}_${i}`] = foto;
+        nuevas.push(foto);
+      }
+      const total = (await cargar(key)).length + nuevas.length;
+      updates[`flota_fotos_index/${key}`] = total;
+      await db.ref().update(updates);
+      fotosCache.set(key, [...(fotosCache.get(key) || []), ...nuevas]);
+      fotos = fotosCache.get(key);
+      idx = fotos.length - nuevas.length;
+      pintar();
+      toast(`✓ ${nuevas.length} foto${nuevas.length !== 1 ? 's' : ''} agregada${nuevas.length !== 1 ? 's' : ''} a ${patenteActual}`);
+    } catch (err) {
+      toast('No se pudieron subir las fotos', 'error');
+    } finally {
+      label.classList.remove('subiendo');
+    }
+  });
 
   // --- Intro con el logo: una vez por sesión del navegador ------------
   let introVista = false;
