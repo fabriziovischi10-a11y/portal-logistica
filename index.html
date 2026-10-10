@@ -12188,7 +12188,7 @@ function renderCamiones() {
       <td style="font-family:'IBM Plex Mono',monospace;color:#38a169;">${r.palletsdev||0}</td>
       <td style="font-family:'IBM Plex Mono',monospace;color:#8e44ad;">${r.palletsvale||0}</td>
       <td>${(r.rechazos||[]).length ? `<span class="badge badge-red">${(r.rechazos||[]).length} ítem${(r.rechazos||[]).length>1?'s':''}</span>` : '<span class="badge badge-green">Sin rechazos</span>'}</td>
-      <td><button class="btn btn-ghost btn-sm" onclick="eliminarCamion(${r.id})">✕</button></td>
+      <td>${r.origen==='tms'?'<span class="badge badge-blue" title="Cargado desde el TMS (Hoja de Ruta): se cambia desde allá">TMS</span>':`<button class="btn btn-ghost btn-sm" onclick="eliminarCamion(${r.id})">✕</button>`}</td>
     </tr>
   `).join('');
   updateStats();
@@ -13655,6 +13655,7 @@ function showTabByName(name) {
 // ── Drill-down modal ──────────────────────────────────────────────
 // ── Editar / Borrar registros desde Historial ────────────────────────────────
 function histBorrarRegistro(tipo, id) {
+  if (tipo === 'camion' && String(id).startsWith('tms_')) { alert('Esta recepción viene del TMS (Hoja de Ruta). Para cambiarla o borrarla, hacelo en Recepción de mercadería del TMS: acá se actualiza sola.'); return; }
   if (!confirm('¿Seguro que querés borrar este registro? Esta acción no se puede deshacer.')) return;
   if (tipo === 'camion') {
     fbDeleteCamion(id).then(() => toast('✓ Registro eliminado')).catch(() => toast('Error al borrar','error'));
@@ -13666,6 +13667,7 @@ function histBorrarRegistro(tipo, id) {
 }
 
 function histEditarRegistro(tipo, id) {
+  if (tipo === 'camion' && String(id).startsWith('tms_')) { alert('Esta recepción viene del TMS (Hoja de Ruta). Para cambiarla o borrarla, hacelo en Recepción de mercadería del TMS: acá se actualiza sola.'); return; }
   let registro = null;
   let campos = [];
 
@@ -21819,6 +21821,7 @@ function enviosRenderDonut(canvasId, legendId, unidadesSuc, unidadesPrev) {
 <!-- Conexión con el TMS (Hoja de Ruta): las órdenes de carga se copian solas al Parte diario.
      Canal "Sucursales" → Recorridos de Sucursales (una fila por sucursal, clave "tms_<orden>_<sucursal>").
      Canal "Preventa"   → Recorridos de Preventa (una fila por orden, clave "tms_<orden>").
+     Recepción de mercadería → Recepción de Camiones (clave "tms_<recepción>").
      Si la orden cambia o se anula en el TMS, la fila se corrige o se borra. -->
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
@@ -21831,10 +21834,10 @@ function enviosRenderDonut(canvasId, legendId, unidadesSuc, unidadesPrev) {
     "belgrano":"BELGRANO","roca 3640":"ROCA 3000","roca 3000":"ROCA 3000","prospero mena":"PROSPERO MENA","banda":"BANDA R.S","juan b. justo":"JBJ","juan b justo":"JBJ"};
   const norm=s=>String(s||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/\s+/g," ").trim();
   const placa=s=>String(s||"").toUpperCase().replace(/[^A-Z0-9]/g,"");
-  const T={salidas:null,choferes:{},personal:{},camiones:{},sucursales:{},zonas:{}};
-  const RT={suc:null,prev:null};
+  const T={salidas:null,recepciones:null,choferes:{},personal:{},camiones:{},sucursales:{},zonas:{}};
+  const RT={suc:null,prev:null,cam:null};
   let cfgListo=false, pendiente=null;
-  window.tmsSyncEstado={conectado:false,suc:0,prev:0,error:""};
+  window.tmsSyncEstado={conectado:false,suc:0,prev:0,cam:0,error:""};
 
   function listaPersonal(){ return (typeof CFG_PERSONAL!=="undefined"&&CFG_PERSONAL.length)?CFG_PERSONAL:(typeof REC_PERSONAL!=="undefined"?REC_PERSONAL:[]); }
   function listaFlota(){ return (typeof CFG_FLOTA!=="undefined"&&CFG_FLOTA.length)?CFG_FLOTA:(typeof REC_FLOTA!=="undefined"?REC_FLOTA:[]); }
@@ -21906,6 +21909,26 @@ function enviosRenderDonut(canvasId, legendId, unidadesSuc, unidadesPrev) {
     });
     return out;
   }
+  // Recepciones del TMS → Recepción de Camiones (camiones/tms_<recepción>)
+  const DEP_MAP={"deposito 1":"DEPOSITO 1","deposito 15":"DEPOSITO 15","parque logistico":"CENTRO LOGISTICO"};
+  function horaDe(iso){ const d=new Date(iso); return isNaN(d)?"":String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0"); }
+  function deseadosCam(){
+    const out={};
+    (T.recepciones||[]).forEach(r=>{
+      if(!r.fecha) return;
+      const id="tms_"+r.id, rec=persona(r.recibioId);
+      const obs=["TMS recepción",r.remitoNro?"Remito "+r.remitoNro:"",r.bultos?r.bultos+" bultos":"",r.unidades?r.unidades+" unidades":"",r.firmado?"Firmado":"Sin firma",rec?"Recibió: "+rec:"",r.obs||""].filter(Boolean).join(" · ");
+      out[id]={id,fecha:r.fecha,hora:horaDe(r.createdAt),patente:r.remitoNro?"Remito "+r.remitoNro:"—",
+        transportista:String(r.proveedor||"").trim().toUpperCase(),deposito:DEP_MAP[norm(r.deposito)]||String(r.deposito||"").toUpperCase(),
+        pallets:Number(r.pallets)||0,palletsdev:0,palletsvale:0,rechazos:[],obs,origen:"tms",tmsId:r.id};
+    });
+    return out;
+  }
+  function diferPlano(raiz,actual,quiero,upd){
+    const hay={}; Object.entries(actual||{}).forEach(([k,it])=>{ if(it&&it.origen==="tms") hay[k]=it; });
+    Object.entries(quiero).forEach(([k,it])=>{ if(!hay[k]||estable(hay[k])!==estable(it)) upd[raiz+"/"+k]=it; });
+    Object.keys(hay).forEach(k=>{ if(!quiero[k]) upd[raiz+"/"+k]=null; });
+  }
   function difer(raiz,actual,quiero,upd){
     const hay={};
     Object.entries(actual||{}).forEach(([sk,sem])=>Object.entries(sem||{}).forEach(([d,items])=>Object.entries(items||{}).forEach(([k,it])=>{ if(it&&it.origen==="tms") hay[sk+"/"+d+"/"+k]=it; })));
@@ -21919,18 +21942,20 @@ function enviosRenderDonut(canvasId, legendId, unidadesSuc, unidadesPrev) {
       const qs=deseadosSuc(), qp=deseadosPrev(), upd={};
       difer("sucursales_por_semana",RT.suc,qs,upd);
       difer("recorridos_por_semana",RT.prev,qp,upd);
-      window.tmsSyncEstado={conectado:true,suc:Object.keys(qs).length,prev:Object.keys(qp).length,error:""};
+      let nc=window.tmsSyncEstado.cam||0;
+      if(T.recepciones!==null&&RT.cam!==null){ const qc=deseadosCam(); diferPlano("camiones",RT.cam,qc,upd); nc=Object.keys(qc).length; }
+      window.tmsSyncEstado={conectado:true,suc:Object.keys(qs).length,prev:Object.keys(qp).length,cam:nc,error:""};
       pintarEstado();
       if(Object.keys(upd).length) db.ref().update(upd).catch(e=>{console.error("TMS sync",e);window.tmsSyncEstado.error="No se pudo guardar";pintarEstado();});
     },400);
   }
   function pintarEstado(){
     const e=window.tmsSyncEstado;
-    [["suc-tituloDia","tms-sync-estado",e.suc],["rec-tituloDia","tms-sync-estado-rec",e.prev]].forEach(([tid,bid,n])=>{
+    [["suc-tituloDia","tms-sync-estado",e.suc,"viaje","viajes"],["rec-tituloDia","tms-sync-estado-rec",e.prev,"viaje","viajes"],["registros-hoy-count","tms-sync-estado-cam",e.cam,"recepción","recepciones"]].forEach(([tid,bid,n,uno,varios])=>{
       const t=document.getElementById(tid); if(!t) return;
       let b=document.getElementById(bid);
       if(!b){ b=document.createElement("span"); b.id=bid; b.style.cssText="margin-left:10px;font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;vertical-align:middle;white-space:nowrap"; t.insertAdjacentElement("afterend",b); }
-      b.textContent=e.error?("TMS: "+e.error):e.conectado?("🔗 Conectado con TMS · "+n+" viaje"+(n===1?"":"s")):"TMS: conectando…";
+      b.textContent=e.error?("TMS: "+e.error):e.conectado?("🔗 Conectado con TMS · "+n+" "+(n===1?uno:varios)):"TMS: conectando…";
       b.style.background=e.error?"#fde6e4":e.conectado?"#e1f5eb":"#edf0f5"; b.style.color=e.error?"#c8322b":e.conectado?"#12805c":"#64738a";
     });
   }
@@ -21940,6 +21965,7 @@ function enviosRenderDonut(canvasId, legendId, unidadesSuc, unidadesPrev) {
     pintarEstado();
     db.ref("sucursales_por_semana").on("value",s=>{ RT.suc=s.val()||{}; sincronizar(); });
     db.ref("recorridos_por_semana").on("value",s=>{ RT.prev=s.val()||{}; sincronizar(); });
+    db.ref("camiones").on("value",s=>{ RT.cam=s.val()||{}; sincronizar(); });
     db.ref("config").on("value",()=>{ setTimeout(()=>{ cfgListo=true; sincronizar(); },300); });
     setTimeout(()=>{ cfgListo=true; sincronizar(); },6000);
     try{
@@ -21950,6 +21976,8 @@ function enviosRenderDonut(canvasId, legendId, unidadesSuc, unidadesPrev) {
       try{ fs.settings({experimentalAutoDetectLongPolling:true,merge:true}); }catch(e){}
       const mapa=k=>s=>{ T[k]={}; s.docs.forEach(d=>T[k][d.id]=d.data()); sincronizar(); };
       ["choferes","personal","camiones","sucursales","zonas"].forEach(k=>fs.collection(RAIZ+k).onSnapshot(mapa(k),e=>console.error("TMS",k,e)));
+      fs.collection(RAIZ+"recepciones").orderBy("fecha","desc").limit(1000).onSnapshot(s=>{ T.recepciones=s.docs.map(d=>Object.assign({id:d.id},d.data())); sincronizar(); },
+        e=>console.error("TMS recepciones",e));
       fs.collection(RAIZ+"salidas").orderBy("fecha","desc").limit(1000).onSnapshot(s=>{ T.salidas=s.docs.map(d=>Object.assign({id:d.id},d.data())); sincronizar(); },
         e=>{ console.error("TMS salidas",e); window.tmsSyncEstado.error="sin conexión"; pintarEstado(); });
     }catch(e){ console.error("TMS sync",e); window.tmsSyncEstado.error="sin conexión"; pintarEstado(); }
