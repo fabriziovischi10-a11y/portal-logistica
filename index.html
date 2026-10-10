@@ -15205,7 +15205,7 @@ function recRenderTabla() {
       <td style="font-size:12px;">${r.p1||'—'}</td>
       <td style="font-size:12px;">${r.p2||'—'}</td>
       <td style="font-size:12px;">${r.p3||'—'}</td>
-      <td><span class="badge badge-green" style="white-space:nowrap;">${r.zona||'—'}</span>${r.zona2 ? `<span class="badge badge-green rec-zona2" style="white-space:nowrap;">${r.zona2}</span>` : ''}</td>
+      <td><span class="badge badge-green" style="white-space:nowrap;">${r.zona||'—'}</span>${r.origen==='tms'?' <span class="badge badge-blue" title="Cargado desde el TMS (Hoja de Ruta)" style="font-size:10px;">TMS</span>':''}${r.zona2 ? `<span class="badge badge-green rec-zona2" style="white-space:nowrap;">${r.zona2}</span>` : ''}</td>
       <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;" title="${r.lugares}">${r.lugares||'—'}</td>
       <td style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--accent2);">${r.valor ? '$'+Number(r.valor).toLocaleString('es-AR') : '—'}</td>
       <td style="font-family:'IBM Plex Mono',monospace;font-size:12px;">${r.kmRuta ? r.kmRuta+' km' : '—'}</td>
@@ -15247,6 +15247,8 @@ function recLimpiarModal() {
 }
 
 function recEditarRecorrido(i) {
+  const itTms = recorridos[recDiaActivo][i];
+  if (itTms && itTms.origen === 'tms') { alert('Este recorrido viene del TMS (Hoja de Ruta). Para cambiarlo o borrarlo, modificá o anulá la orden de carga en el TMS: acá se actualiza solo.'); return; }
   const r = recorridos[recDiaActivo][i];
   if (!r) return;
   recLimpiarModal();
@@ -15312,6 +15314,8 @@ function recGuardarRecorrido() {
 }
 
 function recEliminar(i) {
+  const itTms = recorridos[recDiaActivo][i];
+  if (itTms && itTms.origen === 'tms') { alert('Este recorrido viene del TMS (Hoja de Ruta). Para cambiarlo o borrarlo, modificá o anulá la orden de carga en el TMS: acá se actualiza solo.'); return; }
   if (!confirm('¿Eliminar este recorrido?')) return;
   const item = recorridos[recDiaActivo][i];
   fbDeleteRecorrido(item)
@@ -21812,9 +21816,10 @@ function enviosRenderDonut(canvasId, legendId, unidadesSuc, unidadesPrev) {
 })();
 </script>
 <!-- PORTAL-JS:END -->
-<!-- Conexión con el TMS (Hoja de Ruta): las órdenes de carga de canal "Sucursales"
-     se copian solas a Recorridos de Sucursales. Cada sucursal de una orden es una fila
-     con clave "tms_<orden>_<sucursal>"; si la orden cambia o se anula, la fila se corrige o se borra. -->
+<!-- Conexión con el TMS (Hoja de Ruta): las órdenes de carga se copian solas al Parte diario.
+     Canal "Sucursales" → Recorridos de Sucursales (una fila por sucursal, clave "tms_<orden>_<sucursal>").
+     Canal "Preventa"   → Recorridos de Preventa (una fila por orden, clave "tms_<orden>").
+     Si la orden cambia o se anula en el TMS, la fila se corrige o se borra. -->
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <script>
@@ -21826,13 +21831,16 @@ function enviosRenderDonut(canvasId, legendId, unidadesSuc, unidadesPrev) {
     "belgrano":"BELGRANO","roca 3640":"ROCA 3000","roca 3000":"ROCA 3000","prospero mena":"PROSPERO MENA","banda":"BANDA R.S","juan b. justo":"JBJ","juan b justo":"JBJ"};
   const norm=s=>String(s||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/\s+/g," ").trim();
   const placa=s=>String(s||"").toUpperCase().replace(/[^A-Z0-9]/g,"");
-  const T={salidas:null,choferes:{},personal:{},camiones:{},sucursales:{}};
-  let rtdb=null, cfgListo=false, pendiente=null;
-  window.tmsSyncEstado={conectado:false,viajes:0,error:""};
+  const T={salidas:null,choferes:{},personal:{},camiones:{},sucursales:{},zonas:{}};
+  const RT={suc:null,prev:null};
+  let cfgListo=false, pendiente=null;
+  window.tmsSyncEstado={conectado:false,suc:0,prev:0,error:""};
 
   function listaPersonal(){ return (typeof CFG_PERSONAL!=="undefined"&&CFG_PERSONAL.length)?CFG_PERSONAL:(typeof REC_PERSONAL!=="undefined"?REC_PERSONAL:[]); }
   function listaFlota(){ return (typeof CFG_FLOTA!=="undefined"&&CFG_FLOTA.length)?CFG_FLOTA:(typeof REC_FLOTA!=="undefined"?REC_FLOTA:[]); }
+  function listaChasis(){ try{ return recListaChasis(); }catch(e){ return listaFlota(); } }
   function listaSucursales(){ return (typeof CFG_SUCURSALES!=="undefined"&&CFG_SUCURSALES.length)?CFG_SUCURSALES:(typeof SUCURSALES_LIST!=="undefined"?SUCURSALES_LIST:[]); }
+  function listaZonas(){ return (typeof CFG_ZONAS!=="undefined"&&CFG_ZONAS.length)?CFG_ZONAS:[]; }
 
   // Busca a la persona en el personal del Parte diario aunque el orden de nombre/apellido o los acentos difieran.
   function persona(id){
@@ -21841,10 +21849,10 @@ function enviosRenderDonut(canvasId, legendId, unidadesSuc, unidadesPrev) {
     listaPersonal().forEach(c=>{ const ct=norm(c).split(" "); const n=tk.filter(t=>ct.includes(t)).length; if(n>pts){pts=n;mejor=c;} });
     return pts>=Math.min(2,tk.length)?mejor:p.nombre;
   }
-  function vehiculo(id){
+  function vehiculo(id,lista){
     const c=T.camiones[id]; if(!c) return "";
-    const p=placa(c.patente), fl=listaFlota();
-    const conPat=fl.map(v=>[v,placa((String(v).match(/\(([^)]+)\)/)||[])[1])]);
+    const p=placa(c.patente);
+    const conPat=(lista||listaFlota()).map(v=>[v,placa((String(v).match(/\(([^)]+)\)/)||[])[1])]);
     const ex=conPat.find(([,x])=>x&&x===p)||conPat.find(([,x])=>x&&(p.startsWith(x)||x.startsWith(p)));
     return ex?ex[0]:`(${c.patente}) ${c.modelo||""}`.trim();
   }
@@ -21854,51 +21862,84 @@ function enviosRenderDonut(canvasId, legendId, unidadesSuc, unidadesPrev) {
     const l=listaSucursales().find(x=>norm(x)===n||norm(x).includes(n)||n.includes(norm(x)));
     return l||String(s.nombre).toUpperCase();
   }
+  // Zona del TMS (código "35") → zona del Parte diario cuyo nombre empieza con ese número ("35 TOMAS FERRARI").
+  function zona(id){
+    const z=T.zonas[id]; if(!z) return null;
+    const num=parseInt(z.codigo||String(id).replace(/\D/g,""),10);
+    const cfg=isNaN(num)?null:listaZonas().find(c=>parseInt(c.nombre,10)===num);
+    return cfg||{nombre:(isNaN(num)?"":num+" ")+String(z.nombre||"").toUpperCase(),lugares:z.nombre||"",km:0};
+  }
   function lunesDe(iso){ const d=new Date(iso+"T00:00:00"); d.setDate(d.getDate()-((d.getDay()+6)%7)); return d.toISOString().split("T")[0]; }
+  function ubicar(fecha){ const dow=new Date(fecha+"T00:00:00").getDay(); return dow===0?null:{dia:(dow+6)%7,semanaKey:lunesDe(fecha)}; } // el Parte diario no tiene domingo
   const estable=o=>JSON.stringify(Object.keys(o).sort().reduce((a,k)=>(a[k]=o[k],a),{}));
+  const n2=v=>(v===null||v===undefined||v==="")?"":String(v);
+  function nota(s){ const ctrl=persona(s.controladorId), ng=(s.guiaIds||[]).length;
+    return ["TMS orden N° "+(s.nro??"—"),s.estado||"",ng?ng+(ng===1?" guía":" guías"):"",ctrl?"Control: "+ctrl:"",s.obs||""].filter(Boolean).join(" · "); }
 
-  function deseados(){
+  function deseadosSuc(){
     const out={};
     (T.salidas||[]).forEach(s=>{
       if(s.canal!=="Sucursales"||s.estado==="Anulada"||!s.fecha||!(s.sucursalIds||[]).length) return;
-      const dow=new Date(s.fecha+"T00:00:00").getDay(); if(dow===0) return; // el Parte diario no tiene domingo
-      const dia=(dow+6)%7, semanaKey=lunesDe(s.fecha);
-      const ctrl=persona(s.controladorId), ng=(s.guiaIds||[]).length;
-      const obs=["TMS orden N° "+(s.nro??"—"),s.estado||"",ng?ng+(ng===1?" guía":" guías"):"",ctrl?"Control: "+ctrl:"",s.obs||""].filter(Boolean).join(" · ");
+      const u=ubicar(s.fecha); if(!u) return; const obs=nota(s);
       s.sucursalIds.forEach(sid=>{
         const fbKey="tms_"+s.id+"_"+sid;
-        out[semanaKey+"/"+dia+"/"+fbKey]={vehiculo:vehiculo(s.camionId),p1:persona(s.choferId),p2:persona(s.cobradorId),p3:"",
-          sucursal:sucursal(sid),obs,dia,semanaKey,fbKey,ts:Date.parse(s.createdAt)||0,origen:"tms",tmsId:s.id};
+        out[u.semanaKey+"/"+u.dia+"/"+fbKey]={vehiculo:vehiculo(s.camionId),p1:persona(s.choferId),p2:persona(s.cobradorId),p3:"",
+          sucursal:sucursal(sid),obs,dia:u.dia,semanaKey:u.semanaKey,fbKey,ts:Date.parse(s.createdAt)||0,origen:"tms",tmsId:s.id};
       });
     });
     return out;
   }
+  function deseadosPrev(){
+    const out={};
+    (T.salidas||[]).forEach(s=>{
+      if(s.canal!=="Preventa"||s.estado==="Anulada"||!s.fecha) return;
+      const u=ubicar(s.fecha); if(!u) return;
+      const zs=(s.zonaIds||[]).map(zona).filter(Boolean);
+      const kmZonas=zs.reduce((a,z)=>a+(Number(z.km)||0),0), km=Math.round(Number(s.kmPrevisto)||kmZonas||0);
+      const otras=zs.slice(2).map(z=>z.nombre);
+      const fbKey="tms_"+s.id;
+      out[u.semanaKey+"/"+u.dia+"/"+fbKey]={horaIda:n2(s.horaSalida),horaVuelta:n2(s.horaRegreso),vehiculo:vehiculo(s.camionId),
+        chasis:s.acopladoId?vehiculo(s.acopladoId,listaChasis()):"",kmCamion:n2(s.kmSalida),kmRuta:km?String(km):"",
+        p1:persona(s.choferId),p2:persona(s.cobradorId),p3:"",zona:zs[0]?zs[0].nombre:"",zona2:zs[1]?zs[1].nombre:"",
+        lugares:[zs.map(z=>z.lugares).filter(Boolean).join(" / "),otras.length?"(también "+otras.join(", ")+")":""].filter(Boolean).join(" "),
+        valor:"",obs:nota(s),dia:u.dia,semanaKey:u.semanaKey,fbKey,ts:Date.parse(s.createdAt)||0,origen:"tms",tmsId:s.id};
+    });
+    return out;
+  }
+  function difer(raiz,actual,quiero,upd){
+    const hay={};
+    Object.entries(actual||{}).forEach(([sk,sem])=>Object.entries(sem||{}).forEach(([d,items])=>Object.entries(items||{}).forEach(([k,it])=>{ if(it&&it.origen==="tms") hay[sk+"/"+d+"/"+k]=it; })));
+    Object.entries(quiero).forEach(([p,it])=>{ if(!hay[p]||estable(hay[p])!==estable(it)) upd[raiz+"/"+p]=it; });
+    Object.keys(hay).forEach(p=>{ if(!quiero[p]) upd[raiz+"/"+p]=null; });
+  }
   function sincronizar(){
     clearTimeout(pendiente);
     pendiente=setTimeout(()=>{
-      if(!T.salidas||rtdb===null||!cfgListo) return;
-      const quiero=deseados(), hay={}, upd={};
-      Object.entries(rtdb||{}).forEach(([sk,sem])=>Object.entries(sem||{}).forEach(([d,items])=>Object.entries(items||{}).forEach(([k,it])=>{ if(it&&it.origen==="tms") hay[sk+"/"+d+"/"+k]=it; })));
-      Object.entries(quiero).forEach(([p,it])=>{ if(!hay[p]||estable(hay[p])!==estable(it)) upd["sucursales_por_semana/"+p]=it; });
-      Object.keys(hay).forEach(p=>{ if(!quiero[p]) upd["sucursales_por_semana/"+p]=null; });
-      window.tmsSyncEstado={conectado:true,viajes:Object.keys(quiero).length,error:""};
+      if(!T.salidas||RT.suc===null||RT.prev===null||!cfgListo) return;
+      const qs=deseadosSuc(), qp=deseadosPrev(), upd={};
+      difer("sucursales_por_semana",RT.suc,qs,upd);
+      difer("recorridos_por_semana",RT.prev,qp,upd);
+      window.tmsSyncEstado={conectado:true,suc:Object.keys(qs).length,prev:Object.keys(qp).length,error:""};
       pintarEstado();
       if(Object.keys(upd).length) db.ref().update(upd).catch(e=>{console.error("TMS sync",e);window.tmsSyncEstado.error="No se pudo guardar";pintarEstado();});
     },400);
   }
   function pintarEstado(){
-    const t=document.getElementById("suc-tituloDia"); if(!t) return;
-    let b=document.getElementById("tms-sync-estado");
-    if(!b){ b=document.createElement("span"); b.id="tms-sync-estado"; b.style.cssText="margin-left:10px;font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;vertical-align:middle;white-space:nowrap"; t.insertAdjacentElement("afterend",b); }
     const e=window.tmsSyncEstado;
-    b.textContent=e.error?("TMS: "+e.error):e.conectado?("🔗 Conectado con TMS · "+e.viajes+" viaje"+(e.viajes===1?"":"s")):"TMS: conectando…";
-    b.style.background=e.error?"#fde6e4":e.conectado?"#e1f5eb":"#edf0f5"; b.style.color=e.error?"#c8322b":e.conectado?"#12805c":"#64738a";
+    [["suc-tituloDia","tms-sync-estado",e.suc],["rec-tituloDia","tms-sync-estado-rec",e.prev]].forEach(([tid,bid,n])=>{
+      const t=document.getElementById(tid); if(!t) return;
+      let b=document.getElementById(bid);
+      if(!b){ b=document.createElement("span"); b.id=bid; b.style.cssText="margin-left:10px;font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;vertical-align:middle;white-space:nowrap"; t.insertAdjacentElement("afterend",b); }
+      b.textContent=e.error?("TMS: "+e.error):e.conectado?("🔗 Conectado con TMS · "+n+" viaje"+(n===1?"":"s")):"TMS: conectando…";
+      b.style.background=e.error?"#fde6e4":e.conectado?"#e1f5eb":"#edf0f5"; b.style.color=e.error?"#c8322b":e.conectado?"#12805c":"#64738a";
+    });
   }
 
   async function iniciar(){
     if(typeof db==="undefined"||typeof firebase==="undefined"){ setTimeout(iniciar,500); return; }
     pintarEstado();
-    db.ref("sucursales_por_semana").on("value",s=>{ rtdb=s.val()||{}; sincronizar(); });
+    db.ref("sucursales_por_semana").on("value",s=>{ RT.suc=s.val()||{}; sincronizar(); });
+    db.ref("recorridos_por_semana").on("value",s=>{ RT.prev=s.val()||{}; sincronizar(); });
     db.ref("config").on("value",()=>{ setTimeout(()=>{ cfgListo=true; sincronizar(); },300); });
     setTimeout(()=>{ cfgListo=true; sincronizar(); },6000);
     try{
@@ -21908,7 +21949,7 @@ function enviosRenderDonut(canvasId, legendId, unidadesSuc, unidadesPrev) {
       const fs=new firebase.firestore.Firestore(app,modular);
       try{ fs.settings({experimentalAutoDetectLongPolling:true,merge:true}); }catch(e){}
       const mapa=k=>s=>{ T[k]={}; s.docs.forEach(d=>T[k][d.id]=d.data()); sincronizar(); };
-      ["choferes","personal","camiones","sucursales"].forEach(k=>fs.collection(RAIZ+k).onSnapshot(mapa(k),e=>console.error("TMS",k,e)));
+      ["choferes","personal","camiones","sucursales","zonas"].forEach(k=>fs.collection(RAIZ+k).onSnapshot(mapa(k),e=>console.error("TMS",k,e)));
       fs.collection(RAIZ+"salidas").orderBy("fecha","desc").limit(1000).onSnapshot(s=>{ T.salidas=s.docs.map(d=>Object.assign({id:d.id},d.data())); sincronizar(); },
         e=>{ console.error("TMS salidas",e); window.tmsSyncEstado.error="sin conexión"; pintarEstado(); });
     }catch(e){ console.error("TMS sync",e); window.tmsSyncEstado.error="sin conexión"; pintarEstado(); }
@@ -21916,6 +21957,7 @@ function enviosRenderDonut(canvasId, legendId, unidadesSuc, unidadesPrev) {
   addEventListener("load",iniciar);
 })();
 </script>
+
 <!-- Botón para volver al Escritorio Portal -->
 <a id="btn-escritorio" href="https://fabriziovischi10-a11y.github.io/ecommerceportal/escritorio.html" title="Volver al Escritorio" aria-label="Volver al Escritorio">
 <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2"/><rect x="13.5" y="13.5" width="7" height="7" rx="2"/></svg><span>Escritorio</span></a>
