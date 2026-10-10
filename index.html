@@ -15981,7 +15981,7 @@ function sucRenderTabla() {
       <td style="font-size:12px;">${r.p1||'—'}</td>
       <td style="font-size:12px;">${r.p2||'—'}</td>
       <td style="font-size:12px;">${r.p3||'—'}</td>
-      <td><span class="badge badge-orange" style="white-space:nowrap;font-size:11px;">${r.sucursal||'—'}</span></td>
+      <td><span class="badge badge-orange" style="white-space:nowrap;font-size:11px;">${r.sucursal||'—'}</span>${r.origen==='tms'?' <span class="badge badge-blue" title="Cargado desde el TMS (Hoja de Ruta)" style="font-size:10px;">TMS</span>':''}</td>
       <td style="font-size:12px;color:var(--text2);">${r.obs||'—'}</td>
       <td><button class="btn btn-ghost btn-sm" onclick="sucEliminar(${i})" title="Eliminar">✕</button></td>
     </tr>
@@ -16031,6 +16031,8 @@ function sucGuardarViaje() {
 }
 
 function sucEliminar(i) {
+  const itTms = sucViajes[sucDiaActivo][i];
+  if (itTms && itTms.origen === 'tms') { alert('Este viaje viene del TMS (Hoja de Ruta). Para cambiarlo o borrarlo, modificá o anulá la orden de carga en el TMS: acá se actualiza solo.'); return; }
   if (!confirm('¿Eliminar este viaje?')) return;
   const item = sucViajes[sucDiaActivo][i];
   fbDeleteSucursal(item)
@@ -21810,6 +21812,110 @@ function enviosRenderDonut(canvasId, legendId, unidadesSuc, unidadesPrev) {
 })();
 </script>
 <!-- PORTAL-JS:END -->
+<!-- Conexión con el TMS (Hoja de Ruta): las órdenes de carga de canal "Sucursales"
+     se copian solas a Recorridos de Sucursales. Cada sucursal de una orden es una fila
+     con clave "tms_<orden>_<sucursal>"; si la orden cambia o se anula, la fila se corrige o se borra. -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script>
+(function(){
+  const TMS_CONFIG={apiKey:"AIzaSyCLP890Q5hyuqSs82vyF0rk9VhEg0pBlCA",authDomain:"ecommerce-e7ab2.firebaseapp.com",projectId:"ecommerce-e7ab2",storageBucket:"ecommerce-e7ab2.firebasestorage.app",messagingSenderId:"237845351422",appId:"1:237845351422:web:6350a5c3e103b088cf4eaf"};
+  const RAIZ="hojaruta/datos/";
+  // Nombres de sucursal del TMS → nombres que usa el Parte diario
+  const SUC_MAP={"24 de septiembre":"SUC 24 DE SP","roca 118":"ROCA 118","cordoba":"CORDOBA","lavalle":"LAVALLE","saenz pena":"SAENZ PEÑA",
+    "belgrano":"BELGRANO","roca 3640":"ROCA 3000","roca 3000":"ROCA 3000","prospero mena":"PROSPERO MENA","banda":"BANDA R.S","juan b. justo":"JBJ","juan b justo":"JBJ"};
+  const norm=s=>String(s||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/\s+/g," ").trim();
+  const placa=s=>String(s||"").toUpperCase().replace(/[^A-Z0-9]/g,"");
+  const T={salidas:null,choferes:{},personal:{},camiones:{},sucursales:{}};
+  let rtdb=null, cfgListo=false, pendiente=null;
+  window.tmsSyncEstado={conectado:false,viajes:0,error:""};
+
+  function listaPersonal(){ return (typeof CFG_PERSONAL!=="undefined"&&CFG_PERSONAL.length)?CFG_PERSONAL:(typeof REC_PERSONAL!=="undefined"?REC_PERSONAL:[]); }
+  function listaFlota(){ return (typeof CFG_FLOTA!=="undefined"&&CFG_FLOTA.length)?CFG_FLOTA:(typeof REC_FLOTA!=="undefined"?REC_FLOTA:[]); }
+  function listaSucursales(){ return (typeof CFG_SUCURSALES!=="undefined"&&CFG_SUCURSALES.length)?CFG_SUCURSALES:(typeof SUCURSALES_LIST!=="undefined"?SUCURSALES_LIST:[]); }
+
+  // Busca a la persona en el personal del Parte diario aunque el orden de nombre/apellido o los acentos difieran.
+  function persona(id){
+    const p=T.choferes[id]||T.personal[id]; if(!p||!p.nombre) return "";
+    const tk=norm(p.nombre).split(" ").filter(Boolean); let mejor="",pts=0;
+    listaPersonal().forEach(c=>{ const ct=norm(c).split(" "); const n=tk.filter(t=>ct.includes(t)).length; if(n>pts){pts=n;mejor=c;} });
+    return pts>=Math.min(2,tk.length)?mejor:p.nombre;
+  }
+  function vehiculo(id){
+    const c=T.camiones[id]; if(!c) return "";
+    const p=placa(c.patente), fl=listaFlota();
+    const conPat=fl.map(v=>[v,placa((String(v).match(/\(([^)]+)\)/)||[])[1])]);
+    const ex=conPat.find(([,x])=>x&&x===p)||conPat.find(([,x])=>x&&(p.startsWith(x)||x.startsWith(p)));
+    return ex?ex[0]:`(${c.patente}) ${c.modelo||""}`.trim();
+  }
+  function sucursal(id){
+    const s=T.sucursales[id]; if(!s) return "";
+    const n=norm(s.nombre); if(SUC_MAP[n]) return SUC_MAP[n];
+    const l=listaSucursales().find(x=>norm(x)===n||norm(x).includes(n)||n.includes(norm(x)));
+    return l||String(s.nombre).toUpperCase();
+  }
+  function lunesDe(iso){ const d=new Date(iso+"T00:00:00"); d.setDate(d.getDate()-((d.getDay()+6)%7)); return d.toISOString().split("T")[0]; }
+  const estable=o=>JSON.stringify(Object.keys(o).sort().reduce((a,k)=>(a[k]=o[k],a),{}));
+
+  function deseados(){
+    const out={};
+    (T.salidas||[]).forEach(s=>{
+      if(s.canal!=="Sucursales"||s.estado==="Anulada"||!s.fecha||!(s.sucursalIds||[]).length) return;
+      const dow=new Date(s.fecha+"T00:00:00").getDay(); if(dow===0) return; // el Parte diario no tiene domingo
+      const dia=(dow+6)%7, semanaKey=lunesDe(s.fecha);
+      const ctrl=persona(s.controladorId), ng=(s.guiaIds||[]).length;
+      const obs=["TMS orden N° "+(s.nro??"—"),s.estado||"",ng?ng+(ng===1?" guía":" guías"):"",ctrl?"Control: "+ctrl:"",s.obs||""].filter(Boolean).join(" · ");
+      s.sucursalIds.forEach(sid=>{
+        const fbKey="tms_"+s.id+"_"+sid;
+        out[semanaKey+"/"+dia+"/"+fbKey]={vehiculo:vehiculo(s.camionId),p1:persona(s.choferId),p2:persona(s.cobradorId),p3:"",
+          sucursal:sucursal(sid),obs,dia,semanaKey,fbKey,ts:Date.parse(s.createdAt)||0,origen:"tms",tmsId:s.id};
+      });
+    });
+    return out;
+  }
+  function sincronizar(){
+    clearTimeout(pendiente);
+    pendiente=setTimeout(()=>{
+      if(!T.salidas||rtdb===null||!cfgListo) return;
+      const quiero=deseados(), hay={}, upd={};
+      Object.entries(rtdb||{}).forEach(([sk,sem])=>Object.entries(sem||{}).forEach(([d,items])=>Object.entries(items||{}).forEach(([k,it])=>{ if(it&&it.origen==="tms") hay[sk+"/"+d+"/"+k]=it; })));
+      Object.entries(quiero).forEach(([p,it])=>{ if(!hay[p]||estable(hay[p])!==estable(it)) upd["sucursales_por_semana/"+p]=it; });
+      Object.keys(hay).forEach(p=>{ if(!quiero[p]) upd["sucursales_por_semana/"+p]=null; });
+      window.tmsSyncEstado={conectado:true,viajes:Object.keys(quiero).length,error:""};
+      pintarEstado();
+      if(Object.keys(upd).length) db.ref().update(upd).catch(e=>{console.error("TMS sync",e);window.tmsSyncEstado.error="No se pudo guardar";pintarEstado();});
+    },400);
+  }
+  function pintarEstado(){
+    const t=document.getElementById("suc-tituloDia"); if(!t) return;
+    let b=document.getElementById("tms-sync-estado");
+    if(!b){ b=document.createElement("span"); b.id="tms-sync-estado"; b.style.cssText="margin-left:10px;font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;vertical-align:middle;white-space:nowrap"; t.insertAdjacentElement("afterend",b); }
+    const e=window.tmsSyncEstado;
+    b.textContent=e.error?("TMS: "+e.error):e.conectado?("🔗 Conectado con TMS · "+e.viajes+" viaje"+(e.viajes===1?"":"s")):"TMS: conectando…";
+    b.style.background=e.error?"#fde6e4":e.conectado?"#e1f5eb":"#edf0f5"; b.style.color=e.error?"#c8322b":e.conectado?"#12805c":"#64738a";
+  }
+
+  async function iniciar(){
+    if(typeof db==="undefined"||typeof firebase==="undefined"){ setTimeout(iniciar,500); return; }
+    pintarEstado();
+    db.ref("sucursales_por_semana").on("value",s=>{ rtdb=s.val()||{}; sincronizar(); });
+    db.ref("config").on("value",()=>{ setTimeout(()=>{ cfgListo=true; sincronizar(); },300); });
+    setTimeout(()=>{ cfgListo=true; sincronizar(); },6000);
+    try{
+      const app=firebase.apps.find(a=>a.name==="tms")||firebase.initializeApp(TMS_CONFIG,"tms");
+      await app.auth().signInAnonymously();
+      const modular=app._delegate.container.getProvider("firestore").getImmediate({identifier:"default"}); // la base del TMS se llama "default"
+      const fs=new firebase.firestore.Firestore(app,modular);
+      try{ fs.settings({experimentalAutoDetectLongPolling:true,merge:true}); }catch(e){}
+      const mapa=k=>s=>{ T[k]={}; s.docs.forEach(d=>T[k][d.id]=d.data()); sincronizar(); };
+      ["choferes","personal","camiones","sucursales"].forEach(k=>fs.collection(RAIZ+k).onSnapshot(mapa(k),e=>console.error("TMS",k,e)));
+      fs.collection(RAIZ+"salidas").orderBy("fecha","desc").limit(1000).onSnapshot(s=>{ T.salidas=s.docs.map(d=>Object.assign({id:d.id},d.data())); sincronizar(); },
+        e=>{ console.error("TMS salidas",e); window.tmsSyncEstado.error="sin conexión"; pintarEstado(); });
+    }catch(e){ console.error("TMS sync",e); window.tmsSyncEstado.error="sin conexión"; pintarEstado(); }
+  }
+  addEventListener("load",iniciar);
+})();
+</script>
 <!-- Botón para volver al Escritorio Portal -->
 <a id="btn-escritorio" href="https://fabriziovischi10-a11y.github.io/ecommerceportal/escritorio.html" title="Volver al Escritorio" aria-label="Volver al Escritorio">
 <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2"/><rect x="13.5" y="13.5" width="7" height="7" rx="2"/></svg><span>Escritorio</span></a>
