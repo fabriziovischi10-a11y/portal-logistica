@@ -21916,7 +21916,7 @@ function enviosRenderDonut(canvasId, legendId, unidadesSuc, unidadesPrev) {
     const out={};
     (T.recepciones||[]).forEach(r=>{
       if(!r.fecha) return;
-      const id="tms_"+r.id, rec=persona(r.recibioId);
+      const id="tms_"+r.id, rec=persona(r.recibioId)||String(r.recibioId||"");
       const obs=["TMS recepción",r.remitoNro?"Remito "+r.remitoNro:"",r.bultos?r.bultos+" bultos":"",r.unidades?r.unidades+" unidades":"",r.firmado?"Firmado":"Sin firma",rec?"Recibió: "+rec:"",r.obs||""].filter(Boolean).join(" · ");
       out[id]={id,fecha:r.fecha,hora:horaDe(r.createdAt),patente:r.remitoNro?"Remito "+r.remitoNro:"—",
         transportista:String(r.proveedor||"").trim().toUpperCase(),deposito:DEP_MAP[norm(r.deposito)]||String(r.deposito||"").toUpperCase(),
