@@ -12675,7 +12675,8 @@ function repGuardar() {
   });
 
   const lastUsuario = usuario;
-  recepcionesProg.push(registro);
+  // Firebase avisa el cambio al instante (antes de este punto), así que puede que ya esté en la lista: no duplicar
+  if (!recepcionesProg.some(r => r.id === registro.id)) recepcionesProg.push(registro);
   repRender();
   repActualizarBanner();
   repCerrarForm();
