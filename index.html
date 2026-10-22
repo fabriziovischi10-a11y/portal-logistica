@@ -21972,6 +21972,26 @@ function enviosRenderDonut(canvasId, legendId, unidadesSuc, unidadesPrev) {
      Si la orden cambia o se anula en el TMS, la fila se corrige o se borra. -->
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://fabriziovischi10-a11y.github.io/ecommerceportal/acceso-portal.js" data-app="parte" data-modo="suave"></script>
+<script>
+/* Secciones del Parte diario que puede ver cada usuario (se eligen en la Torre de control → Usuarios).
+   Sin restricción (o administrador) se ve todo, como siempre. */
+(function(){
+  if(!window.PortalAcceso) return;
+  PortalAcceso.listo.then(function(yo){
+    var s=yo&&yo.secciones; if(!s||!s.length) return;
+    var ok=function(n){return s.indexOf(n)>=0};
+    document.querySelectorAll('#tabBar .tab').forEach(function(t){var m=(t.getAttribute('onclick')||'').match(/showTab\('([a-z-]+)'\)/);if(m&&!ok(m[1]))t.style.display='none'});
+    document.querySelectorAll('#tabBar .tab-group').forEach(function(g){var v=[].some.call(g.querySelectorAll('.tab-sub'),function(t){return t.style.display!=='none'});if(!v)g.style.display='none'});
+    var st=window.showTab,sn=window.showTabByName;
+    window.showTab=function(n){if(!ok(n))return;return st.apply(this,arguments)};
+    window.showTabByName=function(n){if(!ok(n))return;var r=sn.apply(this,arguments);if(n==='recepciones-prog'&&window.repInit)repInit();return r};
+    var act=document.querySelector('.panel.active'),an=act?act.id.replace('panel-',''):'';
+    if(!ok(an))showTabByName(s[0]);
+  });
+})();
+</script>
+
 <script>
 (function(){
   const TMS_CONFIG={apiKey:"AIzaSyCLP890Q5hyuqSs82vyF0rk9VhEg0pBlCA",authDomain:"ecommerce-e7ab2.firebaseapp.com",projectId:"ecommerce-e7ab2",storageBucket:"ecommerce-e7ab2.firebasestorage.app",messagingSenderId:"237845351422",appId:"1:237845351422:web:6350a5c3e103b088cf4eaf"};
