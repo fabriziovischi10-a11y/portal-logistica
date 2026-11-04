@@ -14222,6 +14222,7 @@ function fvTipoFromId(id) {
 }
 
 function fvRender() {
+  tmsPublicarAptitud();
   const filtroEstado = document.getElementById('fv-filtro-estado').value;
   const filtroTipo   = document.getElementById('fv-filtro-tipo').value;
 
@@ -14660,6 +14661,7 @@ function snTipoFromDesc(desc) {
 }
 
 function snRender() {
+  tmsPublicarAptitud();
   const filtroEstado = document.getElementById('sn-filtro-estado').value;
   const filtroTipo   = document.getElementById('sn-filtro-tipo').value;
 
@@ -14841,6 +14843,44 @@ function snInit() {
     snRender();
   });
 }
+
+// ── Nov. 2026: VTV y SENASA para el TMS ──────────────────────────
+// Publica en tms_aptitud un resumen por patente que lee hoja-de-ruta.html
+// para saber si cada unidad está en condiciones de salir. Se vuelve a
+// armar desde la lista base + overrides + custom, así sirve aunque la
+// pestaña de vencimientos no se haya abierto.
+let tmsAptTimer = null;
+const tmsPat = s => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+function tmsArmarLista(base, ov, cu) {
+  const out = base.map(v => ({ ...v }));
+  Object.entries(ov).forEach(([id, d]) => {
+    const i = out.findIndex(v => v.id === id);
+    if (d.dadoDeBaja) { if (i >= 0) out.splice(i, 1); return; }
+    if (i >= 0) Object.assign(out[i], d);
+  });
+  Object.entries(cu).forEach(([id, d]) => { if (!out.find(v => v.id === id)) out.push({ ...d, id }); });
+  return out;
+}
+function tmsPublicarAptitud() {
+  clearTimeout(tmsAptTimer);
+  tmsAptTimer = setTimeout(async () => {
+    try {
+      const leer = r => db.ref(r).once('value').then(s => s.val() || {});
+      const [fo, fc, so, sc, prev] = await Promise.all(['flota_venc_overrides', 'flota_venc_custom', 'senasa_venc_overrides', 'senasa_venc_custom', 'tms_aptitud/vehiculos'].map(leer));
+      const veh = {};
+      tmsArmarLista(FV_DATA, fo, fc).forEach(v => { const p = tmsPat(v.dom); if (!p) return;
+        veh[p] = Object.assign(veh[p] || {}, { dom: v.dom, desc: v.desc || '', vtv: v.vtv || null, vtvTramite: !!v.enTramite }); });
+      tmsArmarLista(SENASA_DATA, so, sc).forEach(v => { const p = tmsPat(v.dom); if (!p) return;
+        veh[p] = Object.assign(veh[p] || { dom: v.dom, desc: v.desc || '' }, { sn: v.vto || null, snTramite: !!v.enTramite }); });
+      const limpio = JSON.parse(JSON.stringify(veh));
+      // Firebase devuelve las claves ordenadas: comparar con el mismo orden y sin los null
+      const ord = o => JSON.stringify(o, (k, v) => v && typeof v === 'object' && !Array.isArray(v) ? Object.fromEntries(Object.keys(v).sort().filter(x => v[x] !== null).map(x => [x, v[x]])) : v);
+      if (ord(limpio) === ord(prev)) return;
+      await db.ref('tms_aptitud').set({ vehiculos: limpio, at: new Date().toISOString() });
+    } catch (e) { console.warn('tms_aptitud', e); }
+  }, 3000);
+}
+tmsPublicarAptitud();
 
 let snEditId = null;
 let snModalMode = 'edit'; // 'edit' | 'new'
