@@ -22131,14 +22131,19 @@ function enviosRenderDonut(canvasId, legendId, unidadesSuc, unidadesPrev) {
     });
     return out;
   }
+  // Nov. 2026: solo se sincronizan las últimas semanas (antes se leían hasta 1000 viajes y 1000 recepciones en cada
+  // apertura del Parte diario y se agotaba el cupo gratis de lecturas del TMS). Lo anterior a DESDE queda como está.
+  const DIAS_SYNC=21;
+  const DESDE=(()=>{ const d=new Date(); d.setDate(d.getDate()-DIAS_SYNC); return d.toISOString().split("T")[0]; })();
+  const SEM_DESDE=lunesDe(DESDE);
   function diferPlano(raiz,actual,quiero,upd){
-    const hay={}; Object.entries(actual||{}).forEach(([k,it])=>{ if(it&&it.origen==="tms") hay[k]=it; });
+    const hay={}; Object.entries(actual||{}).forEach(([k,it])=>{ if(it&&it.origen==="tms"&&(it.fecha||"")>=DESDE) hay[k]=it; });
     Object.entries(quiero).forEach(([k,it])=>{ if(!hay[k]||estable(hay[k])!==estable(it)) upd[raiz+"/"+k]=it; });
     Object.keys(hay).forEach(k=>{ if(!quiero[k]) upd[raiz+"/"+k]=null; });
   }
   function difer(raiz,actual,quiero,upd){
     const hay={};
-    Object.entries(actual||{}).forEach(([sk,sem])=>Object.entries(sem||{}).forEach(([d,items])=>Object.entries(items||{}).forEach(([k,it])=>{ if(it&&it.origen==="tms") hay[sk+"/"+d+"/"+k]=it; })));
+    Object.entries(actual||{}).forEach(([sk,sem])=>{ if(sk<SEM_DESDE) return; Object.entries(sem||{}).forEach(([d,items])=>Object.entries(items||{}).forEach(([k,it])=>{ if(it&&it.origen==="tms") hay[sk+"/"+d+"/"+k]=it; })); });
     Object.entries(quiero).forEach(([p,it])=>{ if(!hay[p]||estable(hay[p])!==estable(it)) upd[raiz+"/"+p]=it; });
     Object.keys(hay).forEach(p=>{ if(!quiero[p]) upd[raiz+"/"+p]=null; });
   }
@@ -22183,9 +22188,10 @@ function enviosRenderDonut(canvasId, legendId, unidadesSuc, unidadesPrev) {
       try{ fs.settings({experimentalAutoDetectLongPolling:true,merge:true}); }catch(e){}
       const mapa=k=>s=>{ T[k]={}; s.docs.forEach(d=>T[k][d.id]=d.data()); sincronizar(); };
       ["choferes","personal","camiones","sucursales","zonas"].forEach(k=>fs.collection(RAIZ+k).onSnapshot(mapa(k),e=>console.error("TMS",k,e)));
-      fs.collection(RAIZ+"recepciones").orderBy("fecha","desc").limit(1000).onSnapshot(s=>{ T.recepciones=s.docs.map(d=>Object.assign({id:d.id},d.data())); sincronizar(); },
+      fs.collection(RAIZ+"recepciones").where("fecha",">=",DESDE).onSnapshot(s=>{ T.recepciones=s.docs.map(d=>Object.assign({id:d.id},d.data())); sincronizar(); },
         e=>console.error("TMS recepciones",e));
-      fs.collection(RAIZ+"salidas").orderBy("fecha","desc").limit(1000).onSnapshot(s=>{ T.salidas=s.docs.map(d=>Object.assign({id:d.id},d.data())); sincronizar(); },
+      fs.collection(RAIZ+"salidas").where("fecha",">=",SEM_DESDE).onSnapshot( // desde el lunes: así la semana más vieja queda completa
+s=>{ T.salidas=s.docs.map(d=>Object.assign({id:d.id},d.data())); sincronizar(); },
         e=>{ console.error("TMS salidas",e); window.tmsSyncEstado.error="sin conexión"; pintarEstado(); });
     }catch(e){ console.error("TMS sync",e); window.tmsSyncEstado.error="sin conexión"; pintarEstado(); }
   }
