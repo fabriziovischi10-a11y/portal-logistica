@@ -2316,15 +2316,13 @@
        así que showTab()/showTabByName() no necesitaron cambios de fondo,
        solo el agregado de actualizarGrupoActivo() para abrir el grupo
        correcto y marcarlo como activo. -->
-  <div class="tab-group" id="tabgroup-bajas">
-    <div class="tab tab-group-head" onclick="toggleTabGroup('bajas')">
-      <span>Bajas/Roturas</span><span class="tab-group-arrow">▸</span>
-    </div>
-    <div class="tab-group-items" id="tabgroup-items-bajas">
-      <div class="tab tab-sub" onclick="showTab('baja-deposito')">Baja Depósito</div>
-      <div class="tab tab-sub" onclick="showTab('baja-preventa')">Baja Preventa</div>
-    </div>
-  </div>
+  <!-- Nov. 2026 (pedido del usuario): «Baja Depósito» salió del menú porque las roturas de depósito
+       se cargan en la app de Ajustes / Conteo de stock (el Dashboard las muestra en «Roturas y control
+       de stock», leyendo tablero/conteo de la RTDB). Con un solo ítem el grupo «Bajas/Roturas» no tenía
+       sentido: «Baja Preventa» queda como pestaña suelta. El panel panel-baja-deposito, su código y sus
+       datos (bajasDeposito) siguen en la página, ocultos; para volver, reponer el grupo:
+       <div class="tab-group" id="tabgroup-bajas"> … showTab('baja-deposito') … showTab('baja-preventa') … </div> -->
+  <div class="tab" onclick="showTab('baja-preventa')">Baja Preventa</div>
 
   <div class="tab" onclick="showTab('flota-venc')" id="tab-flota-venc">Vencimientos Flota</div>
 
@@ -2460,6 +2458,8 @@
     .tg-lista li { display: flex; justify-content: space-between; gap: 10px; padding: 5px 0; border-top: 1px dashed var(--border); }
     .tg-lista li:first-child { border-top: 0; }
     .tg-recep-cols { display: grid; grid-template-columns: 1.4fr 1fr; gap: 18px; margin-top: 14px; }
+    /* Roturas y control de stock: 10 tarjetas en 2 filas de 5 en pantallas anchas */
+    @media (min-width: 1100px) { #tg-bq-conteo .tg-nums { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
     @media (max-width: 760px) { .tg-recep-cols { grid-template-columns: 1fr; } }
     .tg-sub { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text3); margin-bottom: 6px; }
     .tg-sub small { text-transform: none; letter-spacing: 0; font-weight: 500; }
@@ -22688,6 +22688,8 @@ s=>{ T.salidas=s.docs.map(d=>Object.assign({id:d.id},d.data())); sincronizar(); 
      Resumen de todas las apps del Portal en la primera pestaña del Parte diario.
      · En vivo (sin costo extra): Parte diario (RTDB ya en memoria), TMS (salidas/recepciones/camiones que ya lee
        la conexión TMS: window.__tmsDatos), depósitos (RTDB tablero/depositos) y aptitud (RTDB tms_aptitud).
+     · Roturas y control de stock (Nov. 2026): RTDB tablero/conteo, que publica la app Ajustes / Conteo de stock
+       (su Firestore es privado) cada vez que alguien la usa con su cuenta.
      · Con caché en la RTDB (tablero/cache/<bloque> = {at, datos}): Gestión de entregas (gestientrega-portal),
        Ecommerce, Control de vehículos, Combustible y Premio (ecommerce-e7ab2). Si el caché es más nuevo que su TTL
        no se consulta Firestore; «Actualizar» fuerza el recálculo. -->
@@ -22701,7 +22703,8 @@ s=>{ T.salidas=s.docs.map(d=>Object.assign({id:d.id},d.data())); sincronizar(); 
     entregas: 'https://fabriziovischi10-a11y.github.io/ecommerceportal/entregas/admin.html',
     ecommerce: 'https://fabriziovischi10-a11y.github.io/ecommerceportal/portal-entregas-firebase.html',
     vehiculos: 'https://fabriziovischi10-a11y.github.io/ecommerceportal/vehiculos.html',
-    premio: 'https://fabriziovischi10-a11y.github.io/ecommerceportal/premio.html'
+    premio: 'https://fabriziovischi10-a11y.github.io/ecommerceportal/premio.html',
+    conteo: 'https://fabriziovischi10-a11y.github.io/conteo-stock/'
   };
   const TMS_CFG = {apiKey:"AIzaSyCLP890Q5hyuqSs82vyF0rk9VhEg0pBlCA",authDomain:"ecommerce-e7ab2.firebaseapp.com",projectId:"ecommerce-e7ab2",storageBucket:"ecommerce-e7ab2.firebasestorage.app",messagingSenderId:"237845351422",appId:"1:237845351422:web:6350a5c3e103b088cf4eaf"};
   const ENT_CFG = {apiKey:"AIzaSyCbz7XLb9jLjlvwEz-NG_jyEPdFwWob7SM",authDomain:"gestientrega-portal.firebaseapp.com",projectId:"gestientrega-portal",storageBucket:"gestientrega-portal.firebasestorage.app",messagingSenderId:"639729899204",appId:"1:639729899204:web:3609e16c548801e1821b91"};
@@ -23113,7 +23116,8 @@ s=>{ T.salidas=s.docs.map(d=>Object.assign({id:d.id},d.data())); sincronizar(); 
       rech: sum(rp, mes+'-01', hoy), rechAnt: sum(rp, mesAnt+'-01', hastaAnt)
     };
     const rub = {}; const gr = typeof getRubro==='function' ? getRubro : null;
-    if(gr) out.dep.r.concat(out.pv.r).forEach(x => { let k; try { k = gr(x.codigo) || 'Sin rubro'; } catch(e) { k = 'Sin rubro'; } rub[k] = (rub[k]||0) + N(x.importe); });
+    if(gr) out.pv.r.forEach( // Nov. 2026: solo preventa (las roturas de depósito salen de la app de Conteo)
+x => { let k; try { k = gr(x.codigo) || 'Sin rubro'; } catch(e) { k = 'Sin rubro'; } rub[k] = (rub[k]||0) + N(x.importe); });
     out.rubroTop = Object.entries(rub).sort((a,b)=>b[1]-a[1])[0] || null;
     const mot = {}; out.rech.r.forEach(x => { const k = x.motivo || 'Sin motivo'; mot[k] = (mot[k]||0)+1; });
     out.motivoTop = Object.entries(mot).sort((a,b)=>b[1]-a[1])[0] || null;
@@ -23317,15 +23321,89 @@ s=>{ T.salidas=s.docs.map(d=>Object.assign({id:d.id},d.data())); sincronizar(); 
   function bqBajas(b){
     const v = (a,p) => { const x = varPct(a,p); return x==null ? 'Mes anterior: sin datos' : (x>0?'+':'')+x+'% vs mes anterior'; };
     const sv = (a,p) => { const x = varPct(a,p); return x==null ? '' : x>20 ? 'ambar' : x<=0 ? 'verde' : ''; };
-    const c = [sv(b.dep.imp,b.depAnt.imp), sv(b.pv.imp,b.pvAnt.imp)];
+    // Nov. 2026: Baja Depósito salió del menú; las roturas de depósito van en el bloque «Roturas y control de stock».
+    const c = [sv(b.pv.imp,b.pvAnt.imp)];
     const nums = [
-      num(fM(b.dep.imp), 'Baja depósito (mes)', fN(b.dep.u)+' unid. · '+v(b.dep.imp,b.depAnt.imp), 'Roturas / bajas cargadas en Baja Depósito desde el 1° del mes. Se compara con el mes anterior a la misma altura (del 1 al '+hoyL().slice(8,10)+'). Ámbar si sube más de 20%.', sv(b.dep.imp,b.depAnt.imp)),
-      num(fM(b.pv.imp), 'Baja preventa (mes)', fN(b.pv.u)+' unid. · '+v(b.pv.imp,b.pvAnt.imp), 'Bajas cargadas en Baja Preventa desde el 1° del mes, comparadas con el mes anterior a la misma altura.', sv(b.pv.imp,b.pvAnt.imp)),
+      num(fM(b.pv.imp), 'Baja preventa (mes)', fN(b.pv.u)+' unid. · '+v(b.pv.imp,b.pvAnt.imp), 'Bajas cargadas en Baja Preventa desde el 1° del mes, comparadas con el mes anterior a la misma altura (del 1 al '+hoyL().slice(8,10)+'). Ámbar si sube más de 20%.', sv(b.pv.imp,b.pvAnt.imp)),
       num(fN(b.rech.u), 'Rechazos preventa (unid.)', fM(b.rech.imp)+' · '+(b.rechAnt.u ? varTxt(b.rech.u,b.rechAnt.u,'vs mes ant.') : 'mes'), 'Unidades rechazadas por clientes de preventa (Baja Preventa › Rechazos) en el mes, con su importe.')
     ];
-    return bloque({ id:'bajas', titulo:'Bajas y roturas (mes)', clases:c, abrir:[{tab:'baja-deposito', txt:'Baja depósito'},{tab:'baja-preventa', txt:'Baja preventa'}],
+    return bloque({ id:'bajas', titulo:'Bajas de preventa (mes)', clases:c, abrir:[{tab:'baja-preventa', txt:'Baja preventa'}],
       cuerpo:'<div class="tg-nums">'+nums.join('')+'</div>',
-      ctx: [(!b.dep.n && b.ultDep) ? 'Última baja de depósito cargada: <b>'+fD(b.ultDep)+'/'+b.ultDep.slice(0,4)+'</b>' : '', (!b.rech.n && b.ultRech) ? 'Último rechazo cargado: <b>'+fD(b.ultRech)+'/'+b.ultRech.slice(0,4)+'</b>' : '', b.rubroTop && b.rubroTop[1] ? 'Rubro con más bajas: <b>'+esc(b.rubroTop[0])+'</b> ('+fM(b.rubroTop[1])+')' : '', b.motivoTop ? 'Motivo de rechazo más repetido: <b>'+esc(b.motivoTop[0])+'</b> ('+b.motivoTop[1]+')' : ''].filter(Boolean).join(' · ') });
+      ctx: [(!b.pv.n && b.ultPv) ? 'Última baja de preventa cargada: <b>'+fD(b.ultPv)+'/'+b.ultPv.slice(0,4)+'</b>' : '', (!b.rech.n && b.ultRech) ? 'Último rechazo cargado: <b>'+fD(b.ultRech)+'/'+b.ultRech.slice(0,4)+'</b>' : '', b.rubroTop && b.rubroTop[1] ? 'Rubro con más bajas: <b>'+esc(b.rubroTop[0])+'</b> ('+fM(b.rubroTop[1])+')' : '', b.motivoTop ? 'Motivo de rechazo más repetido: <b>'+esc(b.motivoTop[0])+'</b> ('+b.motivoTop[1]+')' : ''].filter(Boolean).join(' · ') });
+  }
+  // ── Roturas y control de stock (Nov. 2026) ─────────────────────
+  // Lo publica la app Ajustes / Conteo de stock en la RTDB pública: tablero/conteo (su base Firestore es privada).
+  // Se actualiza cuando alguien tiene abierta esa app con su cuenta: el bloque avisa la antigüedad del dato.
+  const EXACT_OK = 98, EXACT_MIN = 95, EXACT_MUESTRA = 10; // semáforo de exactitud (%) y mínimo de productos contados para pintarlo
+  const semExact = (p, n) => p==null || n < EXACT_MUESTRA ? '' : p >= EXACT_OK ? 'verde' : p >= EXACT_MIN ? 'ambar' : 'rojo';
+  const diaDe = iso => { const d = new Date(iso); return isNaN(d) ? '' : isoL(d); };
+  const fDH = iso => { const d = new Date(iso); return isNaN(d) ? '—' : fD(isoL(d))+' '+fHora(d); };
+  function edadTxt(at){ const h = (Date.now()-Date.parse(at))/36e5; if(!isFinite(h)) return '';
+    return h < 24 ? haceTxt(at) : h < 48 ? 'hace más de un día' : 'hace '+Math.floor(h/24)+' días'; }
+  function bqConteo(al){
+    const C = TG.conteo, ab = [{url:URLS.conteo, txt:'Abrir'}], tit = 'Roturas y control de stock';
+    if(C === undefined) return bloque({ id:'conteo', titulo:tit, ancho:true, abrir:ab, cuerpo: skel(4) });
+    if(!C || !C.roturas) return bloque({ id:'conteo', titulo:tit, ancho:true, abrir:ab,
+      cuerpo:'<div class="tg-vacio">Todavía sin datos: se publican la próxima vez que alguien abra la app de Conteo de stock.</div>' });
+    const R = C.roturas, K = C.conteo || {}, Ng = C.negativos || {}, S = C.sueltos || {}, Ci = C.cierres || {}, c = [];
+    const mes = R.mes || {}, ant = R.mesAnt || {}, hoyR = R.hoy || {}, sem = R.semana || {};
+    const edadH = (Date.now()-Date.parse(C.at))/36e5, viejo = !(edadH <= 24);
+    if(viejo) al.push({ n:'gris', txt:'<b>El resumen de roturas y conteo es de '+edadTxt(C.at)+'</b> ('+fDH(C.at)+'): se actualiza cuando alguien abre la app de Conteo de stock.', url:URLS.conteo });
+    // Roturas del mes vs. el mismo tramo del mes anterior
+    const vR = varPct(N(mes.u), N(ant.u)), sR = vR==null ? '' : vR>20 ? 'ambar' : vR<=0 ? 'verde' : '';
+    if(sR) c.push(sR);
+    if(vR!=null && vR>20 && N(mes.u)>=20) al.push({ n:'ambar', txt:'<b>Roturas en alza: '+fN(mes.u)+' unidades en el mes</b>, '+vR+'% más que el mes anterior a la misma altura ('+fN(ant.u)+' u.)'+(R.topProductos&&arr(R.topProductos)[0]?'. La que más se rompe: '+esc(arr(R.topProductos)[0].desc)+' ('+fN(arr(R.topProductos)[0].u)+' u.)':'')+'.', url:URLS.conteo });
+    const motivos = arr(R.porMotivo), mot = motivos[0];
+    // Exactitud: la lista que se está contando; si todavía no se contó nada, la del último cierre
+    const ult = Ci.ultimo || null, d30 = Ci.dias30 || {};
+    const usaLista = N(K.contados) > 0, exP = usaLista ? K.exactitud : ult && ult.exactitud, exN = usaLista ? N(K.contados) : ult ? N(ult.contados) : 0;
+    const sE = semExact(exP, exN); if(sE) c.push(sE);
+    if(sE==='rojo') al.push({ n:'rojo', txt:'<b>Exactitud del conteo '+fN(exP,1)+'%</b> ('+(usaLista?'lista actual':'último cierre')+': '+fN(exN)+' productos contados, '+fN(usaLista?K.conDiferencia:ult.conAjuste)+' con diferencia). Por debajo de '+EXACT_MIN+'% conviene recontar y revisar ingresos/egresos sin cargar.', url:URLS.conteo });
+    const pendV = N(K.pendientesViejos);
+    if(pendV) { c.push('ambar'); al.push({ n:'ambar', txt:'<b>'+fN(pendV)+' '+(pendV===1?'producto de la lista sigue':'productos de la lista siguen')+' sin contar hace más de 7 días</b>'+(K.pendienteMasViejo?' (el más viejo, desde el '+fD(diaDe(K.pendienteMasViejo))+')':'')+'.', url:URLS.conteo }); }
+    if(N(Ng.pendientes)) { c.push('ambar'); al.push({ n:'ambar', txt:'<b>'+fN(Ng.pendientes)+' '+(Ng.pendientes==1?'negativo sin resolver':'negativos sin resolver')+'</b> en la lista de stock negativo de Conteo (falta contarlos y explicar qué pasó).', url:URLS.conteo }); }
+    const exInfo = 'Exactitud de inventario = productos contados que coinciden con el sistema ÷ productos contados. Es el indicador estándar de confiabilidad del stock: '+
+      '≥ '+EXACT_OK+'% verde (stock confiable), '+EXACT_MIN+'–'+EXACT_OK+'% ámbar (revisar), < '+EXACT_MIN+'% rojo (el sistema no refleja lo que hay: riesgo de quiebres y de vender lo que no está). '+
+      'Con menos de '+EXACT_MUESTRA+' productos contados no se pinta, porque la muestra es chica. '+
+      (usaLista ? 'Ahora muestra la lista que se está contando ('+fN(K.coinciden)+' de '+fN(K.contados)+' coinciden).' : 'La lista actual todavía no tiene contados: muestra el último cierre del día.')+
+      (ult && ult.exactitud!=null ? ' Último cierre ('+fD(diaDe(ult.fecha))+'): '+fN(ult.exactitud,1)+'%.' : '')+
+      (d30.exactitud!=null ? ' Últimos 30 días ('+fN(d30.cierres)+' cierres, '+fN(d30.contados)+' productos): '+fN(d30.exactitud,1)+'%.' : '');
+    const pctMes = x => N(mes.u) ? fPct(N(x)/N(mes.u)*100) : '—';
+    const nums = [
+      num(fN(mes.u)+' <small>u.</small>', 'Roturas del mes', fN(mes.cargas)+' cargas · '+fN(mes.productos)+' prod.'+(vR!=null?' · '+(vR>0?'+':'')+vR+'% vs mes ant.':''),
+        'Unidades dadas de baja en la app de Conteo (roturas, vencidos, mal estado y no aptos del conteo) desde el 1° del mes hasta hoy. Se compara con el mes anterior a la misma altura (del '+fD(ant.desde)+' al '+fD(ant.hasta)+': '+fN(ant.u)+' u. en '+fN(ant.cargas)+' cargas; el mes anterior completo: '+fN((R.mesAntCompleto||{}).u)+' u.). Ámbar si sube más de 20%, verde si baja o se mantiene.'+(R.historialCompleto===false?' Ojo: la app trae las últimas 1.000 cargas y no llegan al 1° del mes anterior, así que la comparación puede quedar corta.':''), sR),
+      num(fN(hoyR.u)+' <small>u.</small>', 'Roturas hoy', fN(hoyR.cargas)+' '+(hoyR.cargas==1?'carga':'cargas'), 'Unidades dadas de baja hoy (fecha de Argentina) en la app de Conteo.'),
+      num(fN(sem.u)+' <small>u.</small>', 'Roturas de la semana', fN(sem.cargas)+' cargas · desde el lunes '+fD(sem.desde), 'Unidades dadas de baja desde el lunes hasta hoy.'),
+      mot ? num(esc(mot.motivo), 'Motivo principal', fN(mot.u)+' u. · '+pctMes(mot.u)+' del mes', 'Motivo con más unidades dadas de baja en el mes: '+motivos.map(m => m.motivo+' '+fN(m.u)+' u. ('+fN(m.cargas)+' cargas)').join(' · ')+'. «No apto (conteo)» son las unidades que se cuentan como no aptas durante el conteo.', 'tg-txt')
+          : num('—', 'Motivo principal', 'Sin roturas este mes', 'Motivo con más unidades dadas de baja en el mes.'),
+      num(exP==null ? '—' : fN(exP,1)+'%', 'Exactitud del conteo', exP==null ? 'Sin productos contados' : (usaLista ? 'Lista actual · '+fN(K.contados)+' contados' : 'Último cierre · '+fD(diaDe(ult.fecha)))+(usaLista && ult && ult.exactitud!=null ? ' · cierre ant. '+fN(ult.exactitud,1)+'%' : ''), exInfo, sE),
+      num(fN(K.conDiferencia), 'Productos con diferencia', '−'+fN(K.unidadesFaltantes)+' faltan · +'+fN(K.unidadesSobrantes)+' sobran',
+        'Productos de la lista actual contados con una cantidad distinta al stock del sistema. Faltan = unidades de menos (contado < sistema); sobran = unidades de más. Neto: '+(N(K.neto)>0?'+':'')+fN(K.neto)+' u.'+(arr(K.topDiferencias).length?' Mayores diferencias: '+arr(K.topDiferencias).map(x => x.desc+' ('+(x.diff>0?'+':'')+fN(x.diff)+')').join(' · ')+'.':'')),
+      num(fN(K.pendientes), 'Pendientes de contar', 'de '+fN(K.enLista)+' en la lista'+(K.pendienteMasViejo?' · desde '+fD(diaDe(K.pendienteMasViejo)):''),
+        'Productos de la lista del conteo que todavía no se contaron. Al cerrar el día quedan en la lista marcados con la fecha; ámbar si alguno lleva más de 7 días sin contar ('+fN(pendV)+' ahora).', pendV?'ambar':''),
+      num(fN(Ng.pendientes), 'Negativos sin resolver', fN(Ng.resueltos)+' resueltos de '+fN(Ng.total),
+        'Productos con stock negativo en el sistema que todavía no se contaron ni se explicó qué pasó (lista «Negativos» de la app de Conteo). Un negativo es casi siempre un error de carga: una venta o egreso sin su ingreso.', N(Ng.pendientes)?'ambar':''),
+      num(fN((S.mes||{}).u)+' <small>u.</small>', 'Sueltos del mes', fN((S.mes||{}).cargas)+' cargas'+(arr(S.porMotivo)[0]?' · '+esc(arr(S.porMotivo)[0].motivo):''),
+        'Mercadería encontrada que no figuraba en el stock y se suma (motivos: '+(arr(S.porMotivo).map(m => m.motivo+' '+fN(m.u)+' u.').join(' · ')||'—')+'). Si crece, suele haber ingresos o devoluciones que no se cargan en el sistema.'),
+      ult ? num(fD(diaDe(ult.fecha)), 'Último cierre del día', 'por '+esc(ult.por||'—')+' · '+fN(ult.contados)+' contados · '+fN(ult.conAjuste)+' con ajuste',
+          'Último «Cerrar día» de la app de Conteo: '+fDH(ult.fecha)+', '+fN(ult.productos)+' productos en la lista, '+fN(ult.contados)+' contados, '+fN(ult.conAjuste)+' con ajuste, '+fN(ult.pendientes)+' pendientes, neto '+(N(ult.neto)>0?'+':'')+fN(ult.neto)+' u.'+(ult.exactitud!=null?' Exactitud: '+fN(ult.exactitud,1)+'%.':'')+
+          (arr(Ci.ultimos).length>1?' Anteriores: '+arr(Ci.ultimos).slice(1,6).map(x => fD(diaDe(x.fecha))+' '+(x.exactitud!=null?fN(x.exactitud,1)+'%':'—')).join(' · ')+'.':''), 'tg-txt')
+          : num('—', 'Último cierre del día', 'Todavía no se cerró ningún día', 'Último «Cerrar día» de la app de Conteo.')
+    ];
+    const rk = (lista, nombre, sub) => { const L = arr(lista).slice(0,5), max = L.length ? N(L[0].u) || 1 : 1;
+      return L.length ? '<ol class="tg-rank">'+L.map((p,i) => '<li><span class="tg-rank-n">'+(i+1)+'</span><span class="tg-rank-p"><b>'+esc(nombre(p))+'</b><small>'+esc(sub(p))+'</small>'+
+        '<i class="tg-rank-bar"><i style="width:'+(N(p.u)/max*100).toFixed(0)+'%"></i></i></span><span class="tg-rank-v">'+fN(p.u)+' <small>u.</small><small>'+pctMes(p.u)+'</small></span></li>').join('')+'</ol>'
+        : '<div class="tg-vacio">Sin roturas cargadas este mes.</div>'; };
+    const prods = rk(R.topProductos, p => p.desc || p.cod, p => 'Cód. '+p.cod+(p.rubro?' · '+p.rubro:'')+' · '+fN(p.cargas)+' '+(p.cargas==1?'carga':'cargas'));
+    const rubros = rk(R.topRubros, p => p.rubro || 'Sin rubro', p => fN(p.cargas)+' '+(p.cargas==1?'carga':'cargas'));
+    const u = R.ultima, quien = arr(R.porPersona);
+    return bloque({ id:'conteo', titulo:tit, ancho:true, clases:c, abrir:ab,
+      cuerpo:'<div class="tg-nums">'+nums.join('')+'</div>'+
+        '<div class="tg-recep-cols"><div><div class="tg-sub">Productos más rotos · mes <small>('+fN(mes.productos)+' productos, '+fN(mes.u)+' u.)</small></div>'+prods+'</div>'+
+        '<div><div class="tg-sub">Rubros con más roturas · mes</div>'+rubros+'</div></div>',
+      ctx: [u ? 'Última rotura: <b>'+fDH(u.fecha)+'</b> · '+esc(u.desc)+' ('+fN(u.u)+' u., '+esc(u.motivo||'—')+(u.por?', '+esc(u.por):'')+')' : '',
+        quien.length ? 'Cargaron este mes: '+quien.map(p => esc(p.por)+' <b>'+fN(p.u)+'</b> u.').join(' · ') : ''].filter(Boolean).join(' · '),
+      pie:'Ajustes / Conteo de stock: actualizado '+edadTxt(C.at)+(C.por?' (app abierta por '+esc(C.por)+')':'')+'. Se actualiza cuando alguien usa la app de Conteo.'+(viejo?' <b>El dato tiene más de 24 h.</b>':'')+(C.prueba?' · <b>DATOS DE PRUEBA</b>':'') });
   }
   function bqPremio(){
     const R = TG.premio, x = R && R.datos, ab = [{url:URLS.premio, txt:'Premio del mes'}];
@@ -23355,6 +23433,7 @@ s=>{ T.salidas=s.docs.map(d=>Object.assign({id:d.id},d.data())); sincronizar(); 
         () => bqDepositos(al),
         () => bqEntregas(al),
         () => bqRecepcion(recepcion(), al),
+        () => bqConteo(al),
         () => bqSucursales(sucursalesPreventa(), al),
         () => bqVehiculos(al),
         () => bqEcommerce(al),
@@ -23400,6 +23479,7 @@ s=>{ T.salidas=s.docs.map(d=>Object.assign({id:d.id},d.data())); sincronizar(); 
     const conDb = () => {
       if(typeof db==='undefined' || typeof firebase==='undefined') { setTimeout(conDb, 400); return; }
       db.ref('tablero/depositos').on('value', s => { TG.dep = s.val(); renderPronto(); });
+      db.ref('tablero/conteo').on('value', s => { TG.conteo = s.val(); renderPronto(); }, e => { console.warn('tablero/conteo', e); TG.conteo = null; renderPronto(); }); // lo publica la app de Conteo de stock
       db.ref('tms_aptitud').on('value', s => { TG.apt = s.val(); renderPronto(); });
       setTimeout(() => cargarRemotos(false), 1500);
     };
