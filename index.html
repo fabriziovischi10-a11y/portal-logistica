@@ -2297,8 +2297,11 @@
 <button class="sidebar-toggle-btn" id="sidebarToggleBtn" onclick="toggleSidebar()" title="Mostrar/ocultar menú" style="position:sticky;top:66px;margin:14px 0 0 10px;z-index:95;align-self:flex-start;">☰</button>
 
 <div class="tab-bar" id="tabBar">
-  <div class="tab active" onclick="showTab('tablero')">Tablero general</div>
-  <div class="tab" onclick="showTab('dashboard')">Dashboard</div>
+  <!-- Nov. 2026 (pedido del usuario): el Tablero general pasó a llamarse «Dashboard» (id interno
+       'tablero' sin cambios) y reemplaza a la pestaña vieja «Dashboard» (panel-dashboard, Historial
+       y Reportes), que sale del menú. Su código y su panel quedan en la página, ocultos, por si hay
+       que volver: alcanza con reponer <div class="tab" onclick="showTab('dashboard')">…</div>. -->
+  <div class="tab active" onclick="showTab('tablero')">Dashboard</div>
   <div class="tab" onclick="showTab('kpi')">KPI</div>
   <div class="tab" onclick="showTab('recepciones-prog')">Recepciones Programadas</div>
   <div class="tab" onclick="showTab('planilla-suc')">Entrega de Sucursales</div>
@@ -2330,15 +2333,11 @@
        Sucursales" — rebautizada a pedido explícito de Fabrizio, mismo
        panel/id/función interna "sucursales"/sucInit(), solo cambió la
        etiqueta visible). Mismo patrón que el grupo de arriba. -->
-  <div class="tab-group" id="tabgroup-recorridos">
-    <div class="tab tab-group-head" onclick="toggleTabGroup('recorridos')">
-      <span>Recorridos</span><span class="tab-group-arrow">▸</span>
-    </div>
-    <div class="tab-group-items" id="tabgroup-items-recorridos">
-      <div class="tab tab-sub" onclick="showTab('recorridos')">Recorridos de Preventa</div>
-      <div class="tab tab-sub" onclick="showTab('sucursales')">Recorridos de Sucursales</div>
-    </div>
-  </div>
+  <!-- Nov. 2026 (pedido del usuario): el grupo «Recorridos» salió del menú porque los recorridos de
+       preventa y de sucursales ya se cargan en el TMS (órdenes de carga). Los paneles panel-recorridos y
+       panel-sucursales, sus datos (recorridos_por_semana / sucursales_por_semana) y el sync TMS→Parte
+       diario siguen en la página, ocultos. El Dashboard y Entrega de Sucursales leen directo del TMS. -->
+
 
   <div class="tab" onclick="showTab('camiones')">Recepción Camiones</div>
   <div class="tab" onclick="showTab('config')">Configuración</div>
@@ -2360,7 +2359,7 @@
        <script> "TABLERO GENERAL" al final de la página (tgInit / tgRender). -->
   <div class="panel active" id="panel-tablero">
     <div class="section-header">
-      <div class="section-title">Tablero general <span>LOS PUNTOS CLAVE DE TODAS LAS APPS</span></div>
+      <div class="section-title">Dashboard <span>LOS PUNTOS CLAVE DE TODAS LAS APPS</span></div>
       <div class="tg-head-acc">
         <span class="tg-upd" id="tg-upd">Cargando…</span>
         <button class="btn btn-primary" id="tg-btn-act" onclick="tgActualizar()">↻ Actualizar</button>
@@ -5081,12 +5080,50 @@
   <div class="panel" id="panel-planilla-suc">
 
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
-      <div class="section-title">Entrega de Sucursales <span>SEMANA ACTUAL</span></div>
-      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-        <input type="date" id="pl-semana" onchange="planillaRender()"
-          style="background:#fff;border:1.5px solid #dde1e9;border-radius:6px;padding:7px 12px;font-size:12px;color:var(--portal-navy);outline:none;font-family:'IBM Plex Mono',monospace;">
-        <button class="btn btn-ghost btn-sm" onclick="planillaExportar()">⬇ Exportar</button>
+      <div class="section-title">Entrega de Sucursales <span id="ets-sub">SEMANA ACTUAL</span></div>
+      <div class="ets-nav">
+        <button type="button" class="ets-navb" onclick="etsSemana(-1)" aria-label="Semana anterior">◀</button>
+        <span id="ets-semana-label" class="ets-semlbl">—</span>
+        <button type="button" class="ets-navb" onclick="etsSemana(1)" aria-label="Semana siguiente">▶</button>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="etsSemana(0)">Hoy</button>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="etsExportar()">⬇ Exportar</button>
       </div>
+    </div>
+
+    <!-- Nov. 2026 (pedido del usuario): la pestaña se arma con las órdenes de carga del TMS, canal
+         «Sucursales», no anuladas (antes: planilla_suc que cargaba la tarea del mail). La lógica está en el
+         <script> "ENTREGA DE SUCURSALES DESDE EL TMS" (etsRender), al lado de la conexión con el TMS. -->
+    <div id="ets-estado" class="ets-estado"></div>
+    <div class="card ets-prog">
+      <div class="ets-prog-top">
+        <div class="ets-prog-tit">Cumplimiento de la semana
+          <span class="info-ico" onclick="mostrarInfoTarjeta(this,event)"
+            data-info-title="Cumplimiento (desde el TMS)"
+            data-info-body="Cada sucursal de cada orden de carga del canal Sucursales es una visita. Cumplimiento a la fecha = visitas cuya orden ya está Finalizada (el camión volvió y se cerró el viaje en el TMS) ÷ visitas que ya tendrían que estar hechas: las de días anteriores a hoy más las de hoy que ya se finalizaron (lo de hoy que sigue en curso no baja el porcentaje hasta que termine el día). Las de días que todavía no llegaron no cuentan. En semanas pasadas es simplemente Finalizadas ÷ total. Las órdenes anuladas no se cuentan.">ⓘ</span>
+        </div>
+        <div class="ets-leyenda">
+          <span><i style="background:#38a169"></i>Finalizada</span><span><i style="background:#2b7bd6"></i>En ruta</span>
+          <span><i style="background:#d69e2e"></i>Cargada</span><span><i style="background:#8b5cf6"></i>Programada</span>
+        </div>
+      </div>
+      <div class="ets-barra" id="ets-barra"></div>
+      <div class="ets-prog-pie"><span id="ets-prog-txt">—</span><b id="ets-prog-pct">—</b></div>
+    </div>
+    <div class="stats-grid" id="ets-stats" style="margin-bottom:20px;"></div>
+    <div class="card" style="margin-bottom:20px;">
+      <div class="card-title"><span class="dot" style="background:var(--portal-navy)"></span>Visitas por día y estado de la orden<span class="info-ico" onclick="mostrarInfoTarjeta(this,event)"
+          data-info-title="Visitas por día"
+          data-info-body="Para cada día de la semana, cuántas sucursales tienen orden de carga del TMS (canal Sucursales), apiladas por el estado de la orden: Programada (orden emitida), Cargada, En ruta o Finalizada.">ⓘ</span></div>
+      <div class="chart-box" style="height:220px;"><canvas id="ets-chart"></canvas></div>
+    </div>
+    <div id="ets-board" class="ets-board" style="margin-bottom:20px;"></div>
+    <div class="card" style="margin-bottom:20px;">
+      <div class="card-title"><span class="dot" style="background:var(--portal-navy)"></span>Detalle de la semana <span style="font-weight:400;color:var(--text3);font-size:11px;margin-left:4px;" id="ets-det-count"></span>
+        <span class="info-ico" onclick="mostrarInfoTarjeta(this,event)"
+          data-info-title="Detalle de la semana"
+          data-info-body="Una fila por sucursal de cada orden de carga del TMS (canal Sucursales, sin anuladas). Vehículo, chofer y ayudante salen de la orden (traducidos a los nombres del Parte diario). Guías y unidades salen de las guías de sucursales que el TMS asignó a la orden (planilla «remitosdet» del sistema), repartidas por la sucursal de cada guía. El TMS no guarda bultos ni pallets por sucursal en las órdenes de sucursales.">ⓘ</span>
+      </div>
+      <div class="ets-tabla-wrap" id="ets-tabla"></div>
     </div>
 
     <!-- Envíos del mes: carga por código interno de producto + cantidad +
@@ -5178,6 +5215,10 @@
       <div id="envios-pl-rubros-bars"></div>
     </div>
 
+    <!-- Nov. 2026: lo que sigue es la vista vieja armada con planilla_suc (planilla del mail). Queda oculta
+         (no se borra nada) por si hay que volver: quitar el atributo hidden de #pl-viejo. -->
+    <div id="pl-viejo" hidden>
+    <input type="date" id="pl-semana" onchange="planillaRender()" hidden>
     <!-- Progress bar global -->
     <div class="card" style="margin-bottom:20px;padding:16px 20px;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
@@ -5256,6 +5297,7 @@
 
     <!-- Board por día -->
     <div id="pl-board" style="display:grid;grid-template-columns:repeat(6,1fr);gap:14px;"></div>
+    </div><!-- /pl-viejo -->
 
   </div><!-- /panel-planilla-suc -->
 
@@ -11959,6 +12001,7 @@ function toggleTheme() {
   if (document.getElementById('panel-planilla-suc')?.classList.contains('active') ||
       document.getElementById('panel-entrega-mensual')?.classList.contains('active')) {
     enviosRenderResumen();
+    if (typeof etsRender === 'function') etsRender(); // nov. 2026: gráfico de Entrega de Sucursales (TMS)
   }
 }
 
@@ -16575,6 +16618,7 @@ function planillaInit() {
   document.getElementById('pl-semana').value = plSemanaKey;
   planillaRender(); // renderiza inmediatamente aunque Firebase no haya respondido aun
   enviosRenderTodo(); // tarjeta de envíos del mes — necesita el canvas visible para dibujar bien
+  if (typeof etsInit === 'function') etsInit(); // nov. 2026: vista principal armada desde el TMS
 }
 
 function planillaRender() {
@@ -22167,7 +22211,7 @@ function enviosRenderDonut(canvasId, legendId, unidadesSuc, unidadesPrev) {
     window.showTab=function(n){if(!ok(n))return;return st.apply(this,arguments)};
     window.showTabByName=function(n){if(!ok(n))return;var r=sn.apply(this,arguments);if(n==='recepciones-prog'&&window.repInit)repInit();return r};
     var act=document.querySelector('.panel.active'),an=act?act.id.replace('panel-',''):'';
-    if(!ok(an))showTabByName(s[0]);
+    if(!ok(an))showTabByName('tablero'); /* nov. 2026: antes s[0], que podía ser una pestaña que ya no está en el menú (dashboard viejo, recorridos) */
   });
 })();
 </script>
@@ -22277,6 +22321,8 @@ function enviosRenderDonut(canvasId, legendId, unidadesSuc, unidadesPrev) {
   const DIAS_SYNC=21;
   const DESDE=(()=>{ const d=new Date(); d.setDate(d.getDate()-DIAS_SYNC); return d.toISOString().split("T")[0]; })();
   const SEM_DESDE=lunesDe(DESDE);
+  // Nov. 2026: Entrega de Sucursales y el Dashboard arman sus vistas con estas mismas traducciones TMS → Parte diario.
+  window.__tmsHelp={sucursal,vehiculo,persona,SEM_DESDE,RAIZ,SUC_MAP,norm};
   function diferPlano(raiz,actual,quiero,upd){
     const hay={}; Object.entries(actual||{}).forEach(([k,it])=>{ if(it&&it.origen==="tms"&&(it.fecha||"")>=DESDE) hay[k]=it; });
     Object.entries(quiero).forEach(([k,it])=>{ if(!hay[k]||estable(hay[k])!==estable(it)) upd[raiz+"/"+k]=it; });
@@ -22339,6 +22385,302 @@ s=>{ T.salidas=s.docs.map(d=>Object.assign({id:d.id},d.data())); sincronizar(); 
     }catch(e){ console.error("TMS sync",e); window.tmsSyncEstado.error="sin conexión"; pintarEstado(); }
   }
   addEventListener("load",iniciar);
+})();
+</script>
+
+<!-- ================= ENTREGA DE SUCURSALES DESDE EL TMS (Nov. 2026) =================
+     La pestaña «Entrega de Sucursales» se arma con las órdenes de carga del TMS (salidas, canal «Sucursales», no anuladas).
+     Una «visita» = una sucursal de una orden. Cuidado del cupo de lecturas de ecommerce-e7ab2 (50.000/día):
+     · Semanas dentro de la ventana que ya lee la conexión TMS (desde el lunes de hace 21 días): 0 lecturas extra.
+     · Semanas anteriores: UNA consulta salidas where fecha>=lunes y fecha<=domingo (sin orderBy ni otros filtros: no pide
+       índice compuesto); el canal se filtra acá. Se guarda en memoria por semana (no se vuelve a leer mientras la página siga abierta).
+     · Guías (unidades por sucursal): se leen por id solo las guías de las órdenes de la semana que se mira; el resumen de las
+       órdenes ya Finalizadas queda en la RTDB (tablero/cache/guias_salida) y no se vuelve a leer del TMS.
+     El Dashboard (bloque «Sucursales y preventa») usa window.__entregaSuc.resumen(). -->
+<style>
+  .ets-nav{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .ets-navb{background:none;border:1.5px solid var(--border);border-radius:6px;width:30px;height:30px;cursor:pointer;font-size:12px;color:var(--portal-navy);line-height:1}
+  .ets-semlbl{font-size:12px;font-weight:700;color:var(--portal-navy);min-width:150px;text-align:center;font-family:'IBM Plex Mono',monospace}
+  .ets-estado{font-size:12px;color:var(--text3);margin:-8px 0 14px}
+  .ets-estado.err{color:#c8322b;font-weight:600}
+  .ets-estado button{margin-left:8px}
+  .ets-prog{margin-bottom:20px;padding:16px 20px}
+  .ets-prog-top{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+  .ets-prog-tit{font-size:13px;font-weight:700;color:var(--portal-navy)}
+  .ets-leyenda{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--text)}
+  .ets-leyenda span{display:flex;align-items:center;gap:5px}
+  .ets-leyenda i{width:12px;height:12px;border-radius:3px;display:inline-block}
+  .ets-barra{display:flex;height:18px;border-radius:8px;overflow:hidden;background:var(--surface2)}
+  .ets-barra div{height:100%;transition:width .5s}
+  .ets-prog-pie{display:flex;justify-content:space-between;gap:10px;margin-top:6px;font-size:11px;color:var(--text3)}
+  .ets-prog-pie b{font-size:14px;color:var(--portal-navy);font-family:'IBM Plex Mono',monospace}
+  .ets-sub{font-size:10px;color:var(--text3);margin-top:4px;line-height:1.3}
+  .ets-board{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:14px}
+  .ets-board.con-dom{grid-template-columns:repeat(7,minmax(0,1fr))}
+  @media (max-width:1100px){.ets-board,.ets-board.con-dom{grid-template-columns:repeat(3,minmax(0,1fr))}}
+  @media (max-width:700px){.ets-board,.ets-board.con-dom{grid-template-columns:minmax(0,1fr)}}
+  .ets-dia{background:var(--surface);border:2px solid var(--border);border-radius:12px;overflow:hidden;min-width:0}
+  .ets-dia.hoy{border-color:var(--portal-navy)}
+  .ets-dia-h{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 12px;background:var(--surface2);color:var(--portal-navy)}
+  .ets-dia.hoy .ets-dia-h{background:var(--portal-navy);color:var(--surface)}
+  .ets-dia-n{font-size:13px;font-weight:700}
+  .ets-dia-f{font-size:10px;opacity:.75}
+  .ets-dia-c{font-size:11px;font-weight:700;text-align:right;white-space:nowrap}
+  .ets-mini{height:4px;background:var(--surface2)}
+  .ets-mini div{height:4px;background:#38a169;transition:width .4s}
+  .ets-dia-b{padding:10px;min-height:80px}
+  .ets-it{border-radius:8px;border:1px solid var(--border);border-left:4px solid var(--c);padding:7px 9px;margin-bottom:7px;background:var(--surface2)}
+  .ets-it-t{display:flex;justify-content:space-between;gap:6px;align-items:baseline}
+  .ets-it-s{font-size:12px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+  .ets-chip{font-size:10px;font-weight:700;color:var(--c);white-space:nowrap}
+  .ets-it-d{font-size:10px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ets-vacio{text-align:center;padding:16px 0;color:var(--text3);font-size:12px}
+  .ets-tabla-wrap{overflow-x:auto;max-width:100%}
+  .ets-tabla{width:100%;border-collapse:collapse;font-size:12px;min-width:880px}
+  .ets-tabla th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);padding:6px 8px;border-bottom:1px solid var(--border);white-space:nowrap}
+  .ets-tabla td{padding:7px 8px;border-bottom:1px solid var(--border);color:var(--text);vertical-align:top}
+  .ets-tabla .n{text-align:right;font-family:'IBM Plex Mono',monospace;white-space:nowrap}
+  .ets-pill{display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;color:#fff;background:var(--c);white-space:nowrap}
+</style>
+<script>
+(function(){
+  'use strict';
+  const RAIZ = 'hojaruta/datos/';
+  const DIAS = ['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
+  const ESTADOS = [['Finalizada','#38a169'],['En ruta','#2b7bd6'],['Cargada','#d69e2e'],['Programada','#8b5cf6']];
+  const COLOR = Object.fromEntries(ESTADOS), GRIS = '#94a3b8';
+  const E = { lunes:null, semanas:{}, cargando:{}, error:{}, guias:{}, pidiendo:{}, lecturas:{ semanas:0, guias:0 } };
+  window.__entregaSuc = E;
+
+  const pad = n => String(n).padStart(2,'0');
+  const isoL = d => d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+  const hoyL = () => isoL(new Date());
+  const addD = (iso,n) => { const d = new Date(iso+'T00:00:00'); d.setDate(d.getDate()+n); return isoL(d); };
+  const lunesDe = iso => { const d = new Date(iso+'T00:00:00'); d.setDate(d.getDate()-((d.getDay()+6)%7)); return isoL(d); };
+  const diaDe = iso => (new Date(iso+'T00:00:00').getDay()+6)%7; // 0 = lunes … 6 = domingo
+  const esc = s => String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const fN = n => Number(n||0).toLocaleString('es-AR');
+  const fD = iso => iso ? iso.slice(8,10)+'/'+iso.slice(5,7) : '—';
+  const H = () => window.__tmsHelp || null;
+  const T = () => window.__tmsDatos || null;
+  const colorDe = est => COLOR[est] || GRIS;
+
+  // ── Datos ─────────────────────────────────────────────────────
+  // Órdenes de carga de la semana que empieza en `lun` (todas), null si todavía no llegaron, 'error' si falló la lectura.
+  function salidasDe(lun){
+    const dom = addD(lun,6), h = H(), t = T();
+    if(h && lun >= h.SEM_DESDE){ // dentro de la ventana que ya lee la conexión con el TMS: sin lecturas extra
+      return t && t.salidas ? t.salidas.filter(s => s.fecha >= lun && s.fecha <= dom) : null;
+    }
+    if(E.semanas[lun]) return E.semanas[lun];
+    if(E.error[lun]) return 'error';
+    pedirSemana(lun); return null;
+  }
+  async function esperarFs(){ const t0 = Date.now(); while(!window.__tmsFs){ if(Date.now()-t0 > 15000) return null; await new Promise(r => setTimeout(r,300)); } return window.__tmsFs; }
+  async function pedirSemana(lun){
+    if(E.cargando[lun] || E.semanas[lun]) return;
+    E.cargando[lun] = true;
+    try {
+      const fs = await esperarFs(); if(!fs) throw new Error('sin conexión con el TMS');
+      const q = await fs.collection(RAIZ+'salidas').where('fecha','>=',lun).where('fecha','<=',addD(lun,6)).get();
+      E.semanas[lun] = q.docs.map(d => Object.assign({ id:d.id }, d.data()));
+      E.lecturas.semanas += Math.max(1, q.size);
+    } catch(e) { console.warn('Entrega de Sucursales (TMS)', e); E.error[lun] = (e && (e.code || e.message)) || 'error'; }
+    E.cargando[lun] = false;
+    if(lun === E.lunes) render();
+  }
+  const esSuc = s => s && s.canal === 'Sucursales' && s.estado !== 'Anulada' && s.fecha;
+  const gUnid = g => g.unidades != null ? Number(g.unidades)||0 : (g.items||[]).reduce((t,i) => t+(Number(i.q)||0), 0);
+  // Guías de sucursales de las órdenes (unidades y sucursal de cada guía). Una semana tiene cientos de guías, así que:
+  // · el resumen por orden YA FINALIZADA se guarda en la RTDB del Parte diario (tablero/cache/guias_salida/<orden> =
+  //   {n: cantidad de guías, s: {<sucursal>: [guías, unidades]}}) y lo reusan todos los que abran la pestaña: cada guía
+  //   se lee del TMS una sola vez en total (si la orden cambia de cantidad de guías, se vuelve a leer);
+  // · las órdenes todavía abiertas se leen por id, una vez por apertura de la página (caché en memoria).
+  const CACHE_G = 'tablero/cache/guias_salida';
+  function cargarCacheG(){
+    if(E.cacheG || E.cargandoCacheG) return; E.cargandoCacheG = true;
+    const listo = v => { E.cacheG = v || {}; E.cargandoCacheG = false; if(activo()) render(); };
+    try { db.ref(CACHE_G).once('value').then(s => listo(s.val()), e => { console.warn('Entrega de Sucursales: caché de guías', e); listo({}); }); }
+    catch(e) { listo({}); }
+  }
+  const cacheOk = s => { const c = E.cacheG && E.cacheG[s.id]; return c && c.n === (s.guiaIds||[]).filter(Boolean).length ? c : null; };
+  function pedirGuias(lista){
+    const fs = window.__tmsFs; if(!fs || !Array.isArray(lista)) return;
+    if(!E.cacheG){ cargarCacheG(); return; }
+    const ids = [], ordenes = [];
+    lista.forEach(s => { if(!esSuc(s) || cacheOk(s)) return; ordenes.push(s);
+      (s.guiaIds||[]).forEach(id => { if(id && !E.guias[id] && !E.pidiendo[id]) { E.pidiendo[id] = true; ids.push(id); } }); });
+    if(!ids.length) { guardarCacheG(ordenes); return; }
+    const col = fs.collection(RAIZ+'guias');
+    Promise.all(ids.map(id => col.doc(id).get().then(d => {
+      const x = d.exists ? d.data() : {}; E.lecturas.guias++;
+      E.guias[id] = { sucursalId: x.sucursalId || '', unid: gUnid(x) };
+    }).catch(e => { console.warn('Entrega de Sucursales: guía', id, e); E.guias[id] = { sucursalId:'', unid:0, error:true }; })))
+      .then(() => { guardarCacheG(ordenes); if(activo()) render(); });
+  }
+  // Reparte las guías de una orden por sucursal: {<sucursal>: [guías, unidades]}; null si falta leer alguna.
+  // Las guías sin sucursal (o de una sucursal que no está en la orden) van a la primera sucursal de la orden.
+  function guiasPorSuc(s){
+    const c = cacheOk(s); if(c) return c.s || {};
+    const ids = (s.sucursalIds||[]).length ? s.sucursalIds : [''], gu = (s.guiaIds||[]).filter(Boolean), out = {};
+    if(gu.some(id => !E.guias[id])) return null;
+    gu.forEach(id => { const g = E.guias[id], k = ids.length === 1 || !ids.includes(g.sucursalId) ? (ids[0]||'_') : g.sucursalId;
+      const x = out[k] = out[k] || [0,0]; x[0]++; x[1] += g.unid||0; });
+    return out;
+  }
+  function guardarCacheG(ordenes){
+    const upd = {};
+    ordenes.forEach(s => { if(s.estado !== 'Finalizada' || cacheOk(s)) return;
+      const gu = (s.guiaIds||[]).filter(Boolean); if(gu.some(id => !E.guias[id] || E.guias[id].error)) return;
+      const r = { n: gu.length, s: guiasPorSuc(s) || {}, at: new Date().toISOString() };
+      upd[s.id] = r; E.cacheG[s.id] = r; });
+    if(Object.keys(upd).length && typeof db !== 'undefined') db.ref(CACHE_G).update(upd).catch(e => console.warn('Entrega de Sucursales: guardar caché de guías', e));
+  }
+  // Nombre de la sucursal: el del Parte diario (mismo mapeo que la conexión con el TMS), con dos alias más que el TMS
+  // escribe distinto («Av. Roca 3640», «Banda del Río Salí»).
+  function nombreSuc(sid){
+    const h = H(), t = T(); if(!sid) return '(sin sucursal)';
+    const x = t && t.sucursales && t.sucursales[sid];
+    if(x && h && h.SUC_MAP && h.norm){ const n = h.norm(x.nombre).replace(/^(av\.?|avda\.?|avenida)\s+/,'').replace(/^banda del rio sali$/,'banda'); if(h.SUC_MAP[n]) return h.SUC_MAP[n]; }
+    return (h && h.sucursal(sid)) || '(sucursal)';
+  }
+  // Una visita por sucursal de cada orden de carga del canal Sucursales (no anulada).
+  function visitas(lista){
+    const h = H(), out = [];
+    (Array.isArray(lista) ? lista : []).forEach(s => {
+      if(!esSuc(s)) return;
+      const ids = (s.sucursalIds||[]).length ? s.sucursalIds : [''];
+      const gs = guiasPorSuc(s), faltan = !gs;
+      const ayud = s.ayudanteNom || (h && s.ayudanteId ? h.persona(s.ayudanteId) : '');
+      ids.forEach((sid, i) => {
+        const g = (gs && gs[sid || '_']) || [0,0];
+        out.push({ fecha: s.fecha, dia: diaDe(s.fecha), sid, sucursal: nombreSuc(sid),
+          estado: s.estado || '—', nro: s.nro, salidaId: s.id,
+          vehiculo: h ? h.vehiculo(s.camionId) : '', chofer: h ? h.persona(s.choferId) : '', ayudante: ayud,
+          hs: s.horaSalida || '', hr: s.horaRegreso || '',
+          guias: faltan ? (ids.length === 1 ? (s.guiaIds||[]).filter(Boolean).length : 0) : g[0], unid: g[1], faltan });
+      });
+    });
+    return out.sort((a,b) => a.fecha.localeCompare(b.fecha) || (Number(a.nro)||0)-(Number(b.nro)||0) || a.sucursal.localeCompare(b.sucursal));
+  }
+  // Números de la semana (también los usa el Dashboard). null = todavía sin datos.
+  function resumen(lun, lista){
+    if(lista === undefined) lista = salidasDe(lun);
+    if(!Array.isArray(lista)) return null;
+    const V = visitas(lista), hoy = hoyL(), c = {};
+    V.forEach(v => c[v.estado] = (c[v.estado]||0)+1);
+    const debidas = V.filter(v => v.fecha < hoy || (v.fecha === hoy && v.estado === 'Finalizada'));
+    const finD = debidas.filter(v => v.estado === 'Finalizada').length;
+    const hoyV = V.filter(v => v.fecha === hoy);
+    return { V, tot: V.length, porEstado: c, fin: c.Finalizada||0, enCurso: (c.Cargada||0)+(c['En ruta']||0), prog: c.Programada||0,
+      debidas: debidas.length, finD, pct: debidas.length ? finD/debidas.length*100 : null,
+      atrasadas: V.filter(v => v.fecha < hoy && v.estado !== 'Finalizada'),
+      hoyTot: hoyV.length, hoyFin: hoyV.filter(v => v.estado === 'Finalizada').length,
+      ordenes: new Set(V.map(v => v.salidaId)).size, sucursales: new Set(V.map(v => v.sucursal)).size,
+      ordenesHoy: new Set(hoyV.map(v => v.salidaId)).size, sucursalesHoy: new Set(hoyV.map(v => v.sucursal)).size,
+      guias: V.reduce((t,v) => t+v.guias, 0), unid: V.reduce((t,v) => t+v.unid, 0), faltanGuias: V.some(v => v.faltan) };
+  }
+  E.resumen = lun => resumen(lun || lunesDe(hoyL()));
+
+  // ── Pantalla ──────────────────────────────────────────────────
+  const activo = () => { const p = document.getElementById('panel-planilla-suc'); return !!(p && p.classList.contains('active')); };
+  const $ = id => document.getElementById(id);
+  function stat(label, valor, color, info, sub){
+    return '<div class="stat-card" style="border-left-color:'+color+';" onclick="mostrarInfoTarjeta(this,event)" data-info-title="'+esc(label)+'" data-info-body="'+esc(info)+'">'+
+      '<div class="stat-label">'+esc(label)+'</div><div class="stat-value" style="color:'+color+';">'+valor+'</div>'+(sub?'<div class="ets-sub">'+sub+'</div>':'')+'</div>';
+  }
+  function render(){
+    if(!$('ets-board')) return;
+    const lun = E.lunes || (E.lunes = lunesDe(hoyL())), dom = addD(lun,6), hoy = hoyL();
+    $('ets-semana-label').textContent = 'Sem. '+fD(lun)+' al '+fD(dom);
+    $('ets-sub').textContent = lun === lunesDe(hoy) ? 'SEMANA ACTUAL' : lun < lunesDe(hoy) ? 'SEMANA ANTERIOR' : 'SEMANA PRÓXIMA';
+    const lista = salidasDe(lun), est = $('ets-estado');
+    est.classList.toggle('err', lista === 'error');
+    if(lista === 'error') est.innerHTML = 'No se pudieron leer las órdenes de carga del TMS de esta semana ('+esc(E.error[lun])+'). <button class="btn btn-ghost btn-sm" type="button" onclick="etsSemana(\'reintentar\')">Reintentar</button>';
+    else if(lista === null) est.textContent = 'Leyendo las órdenes de carga del TMS…';
+    if(Array.isArray(lista)) pedirGuias(lista);
+    const R = resumen(lun, lista) || resumen(lun, []);
+    if(Array.isArray(lista)) est.textContent = '🔗 Órdenes de carga del TMS · canal Sucursales · '+R.ordenes+(R.ordenes===1?' orden':' órdenes')+(R.faltanGuias?' · leyendo guías…':'');
+    const V = R.V;
+
+    // barra de cumplimiento
+    $('ets-barra').innerHTML = R.tot ? ESTADOS.map(([e,c]) => { const n = R.porEstado[e]||0; return n ? '<div style="width:'+(n/R.tot*100)+'%;background:'+c+'" title="'+e+': '+n+'"></div>' : ''; }).join('') +
+      (()=>{ const otros = R.tot - ESTADOS.reduce((t,[e]) => t+(R.porEstado[e]||0), 0); return otros ? '<div style="width:'+(otros/R.tot*100)+'%;background:'+GRIS+'"></div>' : ''; })() : '';
+    $('ets-prog-txt').textContent = R.tot
+      ? R.finD+' de '+R.debidas+' visitas que ya tendrían que estar hechas · '+R.tot+' en la semana'
+      : (Array.isArray(lista) ? 'Sin órdenes de carga a sucursales esta semana en el TMS' : '—');
+    $('ets-prog-pct').textContent = R.pct == null ? '—' : Math.round(R.pct)+'%';
+
+    // tarjetas
+    $('ets-stats').innerHTML = [
+      stat('Visitas a sucursales', fN(R.tot), 'var(--portal-navy)', 'Sucursales con orden de carga del TMS (canal Sucursales, sin anuladas) en la semana. Cuenta sucursal por orden: si una orden lleva 3 sucursales son 3 visitas.', R.ordenes+(R.ordenes===1?' orden':' órdenes')+' · '+R.sucursales+' sucursales'),
+      stat('Finalizadas', fN(R.fin), '#38a169', 'Visitas cuya orden está Finalizada en el TMS: el camión volvió y se cerró el viaje.'),
+      stat('En curso', fN(R.enCurso), '#2b7bd6', 'Visitas cuya orden está Cargada (lista para salir) o En ruta (en viaje).', (R.porEstado.Cargada||0)+' cargadas · '+(R.porEstado['En ruta']||0)+' en ruta'),
+      stat('Programadas', fN(R.prog), '#8b5cf6', 'Visitas con la orden de carga emitida que todavía no se cargó.'),
+      stat('Atrasadas', fN(R.atrasadas.length), R.atrasadas.length ? '#e53e3e' : '#38a169', 'Visitas de días anteriores a hoy cuya orden todavía no está Finalizada en el TMS (o el viaje sigue abierto o falta cerrar el regreso).'),
+      stat('Unidades enviadas', R.faltanGuias ? '…' : fN(R.unid), 'var(--portal-navy)', 'Suma de unidades de las guías de sucursales que el TMS asignó a las órdenes de la semana (planilla «remitosdet» del sistema).', fN(R.guias)+(R.guias===1?' guía':' guías'))
+    ].join('');
+
+    // tablero por día (domingo solo si hay)
+    const nDias = V.some(v => v.dia === 6) ? 7 : 6, board = $('ets-board');
+    board.classList.toggle('con-dom', nDias === 7);
+    board.innerHTML = DIAS.slice(0,nDias).map((dn, d) => {
+      const f = addD(lun,d), it = V.filter(v => v.dia === d), ok = it.filter(v => v.estado === 'Finalizada').length;
+      return '<div class="ets-dia'+(f===hoy?' hoy':'')+'"><div class="ets-dia-h"><div><div class="ets-dia-n">'+dn+'</div><div class="ets-dia-f">'+fD(f)+'</div></div>'+
+        '<div class="ets-dia-c">'+(it.length ? ok+'/'+it.length : '')+'</div></div>'+
+        '<div class="ets-mini"><div style="width:'+(it.length ? ok/it.length*100 : 0)+'%"></div></div><div class="ets-dia-b">'+
+        (it.length ? it.map(v => '<div class="ets-it" style="--c:'+colorDe(v.estado)+'" title="'+esc(v.sucursal+' · orden N° '+(v.nro??'—')+' · '+v.estado)+'">'+
+          '<div class="ets-it-t"><span class="ets-it-s">'+esc(v.sucursal)+'</span><span class="ets-chip">'+esc(v.estado)+'</span></div>'+
+          '<div class="ets-it-d">N° '+esc(v.nro??'—')+(v.vehiculo?' · '+esc(v.vehiculo):'')+'</div>'+
+          (v.chofer ? '<div class="ets-it-d">'+esc(v.chofer)+'</div>' : '')+
+          (v.guias ? '<div class="ets-it-d">'+v.guias+(v.guias===1?' guía':' guías')+(v.unid?' · '+fN(v.unid)+' u.':'')+'</div>' : '')+'</div>').join('')
+          : '<div class="ets-vacio">'+(Array.isArray(lista) ? 'Sin órdenes' : '…')+'</div>')+'</div></div>';
+    }).join('');
+
+    // detalle
+    $('ets-det-count').textContent = V.length ? V.length+(V.length===1?' visita':' visitas') : '';
+    $('ets-tabla').innerHTML = V.length
+      ? '<table class="ets-tabla"><thead><tr><th>Fecha</th><th>Sucursal</th><th>Estado</th><th class="n">N° orden</th><th>Vehículo</th><th>Chofer</th><th>Ayudante</th><th>Salió / volvió</th><th class="n">Guías</th><th class="n">Unidades</th></tr></thead><tbody>'+
+        V.map(v => '<tr><td style="white-space:nowrap">'+DIAS[v.dia].slice(0,3)+' '+fD(v.fecha)+'</td><td><b>'+esc(v.sucursal)+'</b></td><td><span class="ets-pill" style="--c:'+colorDe(v.estado)+'">'+esc(v.estado)+'</span></td>'+
+          '<td class="n">'+esc(v.nro??'—')+'</td><td>'+esc(v.vehiculo||'—')+'</td><td>'+esc(v.chofer||'—')+'</td><td>'+esc(v.ayudante||'—')+'</td>'+
+          '<td style="white-space:nowrap">'+esc((v.hs||'—')+' / '+(v.hr||'—'))+'</td><td class="n">'+(v.guias||'—')+'</td><td class="n">'+(v.faltan&&!v.unid?'…':v.unid?fN(v.unid):'—')+'</td></tr>').join('')+
+        '</tbody></table>'
+      : '<div class="ets-vacio">'+(Array.isArray(lista) ? 'No hay órdenes de carga a sucursales en el TMS para esta semana.' : 'Cargando…')+'</div>';
+
+    // gráfico (solo con la pestaña visible: Chart.js mide el canvas)
+    if(activo() && typeof Chart !== 'undefined' && $('ets-chart')){
+      if(typeof rptDestroyChart === 'function') rptDestroyChart('ets-chart');
+      const otros = V.some(v => !COLOR[v.estado]);
+      const sets = ESTADOS.slice().reverse().concat(otros ? [['Otro',GRIS]] : []).map(([e,c]) => ({ label:e, backgroundColor:c, borderRadius:4, stack:'v',
+        data: DIAS.slice(0,nDias).map((_,d) => V.filter(v => v.dia === d && (e === 'Otro' ? !COLOR[v.estado] : v.estado === e)).length) }));
+      const ch = new Chart($('ets-chart').getContext('2d'), { type:'bar', data:{ labels: DIAS.slice(0,nDias).map(x => x.slice(0,3)), datasets: sets },
+        options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom', labels:{ boxWidth:10, font:{ size:11 } } } },
+          scales:{ x:{ stacked:true, grid:{ display:false } }, y:{ stacked:true, beginAtZero:true, ticks:{ precision:0 } } } } });
+      if(typeof rptCharts !== 'undefined') rptCharts['ets-chart'] = ch;
+    }
+  }
+  window.etsRender = render;
+  window.etsInit = function(){ if(!E.lunes) E.lunes = lunesDe(hoyL()); render(); };
+  window.etsSemana = function(d){
+    if(d === 'reintentar'){ delete E.error[E.lunes]; }
+    else if(d === 0) E.lunes = lunesDe(hoyL());
+    else E.lunes = addD(E.lunes || lunesDe(hoyL()), 7*d);
+    render();
+  };
+  window.etsExportar = function(){
+    const lista = salidasDe(E.lunes || lunesDe(hoyL()));
+    if(!Array.isArray(lista)){ if(typeof toast === 'function') toast('Todavía se están leyendo las órdenes del TMS'); return; }
+    const V = visitas(lista), q = v => '"'+String(v==null?'':v).replace(/"/g,'""')+'"';
+    const filas = [['Fecha','Día','Sucursal','Estado de la orden','N° orden','Vehículo','Chofer','Ayudante','Hora salida','Hora regreso','Guías','Unidades']]
+      .concat(V.map(v => [v.fecha, DIAS[v.dia], v.sucursal, v.estado, v.nro??'', v.vehiculo, v.chofer, v.ayudante, v.hs, v.hr, v.guias, v.unid]));
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob(['﻿'+filas.map(f => f.map(q).join(';')).join('\r\n')], { type:'text/csv;charset=utf-8' }));
+    a.download = 'entrega_sucursales_tms_'+E.lunes+'.csv'; a.click();
+    if(typeof toast === 'function') toast('✓ CSV exportado');
+  };
+  // Cuando la conexión con el TMS trae datos nuevos (o termina de cargar sucursales/camiones/choferes), se redibuja.
+  let pend = null;
+  addEventListener('tmsdatos', () => { if(!activo()) return; clearTimeout(pend); pend = setTimeout(render, 600); });
 })();
 </script>
 
@@ -22744,19 +23086,19 @@ s=>{ T.salidas=s.docs.map(d=>Object.assign({id:d.id},d.data())); sincronizar(); 
       progHoy: progHoy.length, progCumplidas: progHoy.filter(r=>r.estado==='Cumplido').length, progPallets: progHoy.reduce((t,r)=>t+N(r.pallets),0),
       progManana: rp.filter(r => r.fecha===manana).length, atrasadas };
   }
+  // Nov. 2026: sale directo de las órdenes de carga del TMS (window.__tmsDatos.salidas, que ya lee la conexión con el TMS:
+  // 0 lecturas extra). Antes: planilla_suc (planilla del mail) + recorridos_por_semana / sucursales_por_semana.
   function sucursalesPreventa(){
-    const hoy = hoyL(), lun = lunesDe(hoy), dow = (new Date().getDay()+6)%7; // 0 = lunes … 6 = domingo
-    const pl = (G('plData')||{})[lun] || {};
-    let ok=0, parc=0, pend=0, tot=0, pendAnt=0, hoyTot=0, hoyOk=0;
-    for(let d=0; d<6; d++) arr(pl[d]).forEach(e => { tot++; const est = e.estado||'pendiente';
-      if(est==='entregado') ok++; else if(est==='parcial') parc++; else { pend++; if(d<dow) pendAnt++; }
-      if(d===dow){ hoyTot++; if(est==='entregado') hoyOk++; } });
-    const rec = dow<6 ? arr(((G('recorridosPorSemana')||{})[lun]||{})[dow]) : [];
-    const suc = dow<6 ? arr(((G('sucursalesPorSemana')||{})[lun]||{})[dow]) : [];
-    const zonas = new Set(rec.map(r=>r.zona).filter(Boolean));
-    return { ok, parc, pend, tot, pendAnt, hoyTot, hoyOk, pct: tot ? ok/tot*100 : null,
-      recHoy: rec.length, kmRuta: rec.reduce((t,r)=>t+N(r.kmRuta),0), zonas: zonas.size,
-      sucHoy: suc.length, sucursales: new Set(suc.map(s=>s.sucursal).filter(Boolean)).size, domingo: dow===6 };
+    const t = window.__tmsDatos, ES = window.__entregaSuc;
+    if(!t || !t.salidas || !ES || !ES.resumen) return null;
+    const hoy = hoyL(), r = ES.resumen(lunesDe(hoy)); if(!r) return null;
+    const prev = t.salidas.filter(s => s.fecha===hoy && s.canal==='Preventa' && s.estado!=='Anulada');
+    const zonas = new Set(), Z = t.zonas || {};
+    let km = 0;
+    prev.forEach(s => { (s.zonaIds||[]).forEach(z => zonas.add(z));
+      km += N(s.kmPrevisto) || (s.zonaIds||[]).reduce((a,z) => a + N((Z[z]||{}).km), 0); });
+    return { ...r, pendAnt: r.atrasadas.length, recHoy: prev.length, recFin: prev.filter(s=>s.estado==='Finalizada').length,
+      recEnRuta: prev.filter(s=>s.estado==='En ruta').length, kmRuta: Math.round(km), zonas: zonas.size };
   }
   function bajas(){
     const hoy = hoyL(), mes = hoy.slice(0,7);
@@ -22925,18 +23267,21 @@ s=>{ T.salidas=s.docs.map(d=>Object.assign({id:d.id},d.data())); sincronizar(); 
       pie: 'Gestión de entregas: '+haceTxt(R.at)+(R.cache?' (guardado)':'') });
   }
   function bqSucursales(s, al){
+    const ab = [{tab:'planilla-suc', txt:'Entrega de Sucursales'},{url:URLS.tms, txt:'TMS'}];
+    if(!s) return bloque({ id:'sucursales', titulo:'Sucursales y preventa', abrir:ab, cuerpo: skel(5), pie:'Leyendo las órdenes de carga del TMS…' });
     const c = [];
-    if(s.pendAnt) { c.push('ambar'); al.push({ n:'ambar', txt:'<b>'+s.pendAnt+' '+(s.pendAnt===1?'entrega a sucursal':'entregas a sucursales')+' de días anteriores de esta semana siguen pendientes</b> en la planilla.', tab:'planilla-suc' }); }
+    if(s.pendAnt) { c.push('ambar'); al.push({ n:'ambar', txt:'<b>'+s.pendAnt+' '+(s.pendAnt===1?'visita a sucursal':'visitas a sucursales')+' de días anteriores de esta semana sin finalizar</b> en el TMS (viaje abierto o falta cerrar el regreso).', tab:'planilla-suc' }); }
     const sPct = s.pct==null ? '' : s.pct>=90 ? 'verde' : '';
+    const pendSem = s.tot - s.fin;
     const nums = [
-      num(fPct(s.pct), 'Entregas a sucursales (semana)', s.tot ? s.ok+' de '+s.tot+(s.parc?' · '+s.parc+' parciales':'') : 'Sin planilla cargada esta semana', 'Planilla de Entrega de Sucursales de esta semana: entregas marcadas como Entregado sobre el total planificado de lunes a sábado.', sPct),
-      num(s.domingo?'—':fN(s.hoyOk)+' <small>/ '+fN(s.hoyTot)+'</small>', 'Sucursales hoy', s.domingo?'Domingo':'entregadas / planificadas', 'De la planilla de Entrega de Sucursales, las entregas planificadas para hoy y cuántas ya están marcadas como Entregado.'),
-      num(fN(s.pend), 'Pendientes de la semana', s.pendAnt ? s.pendAnt+' de días anteriores' : 'Al día', 'Entregas de la planilla de sucursales de esta semana en estado Pendiente (no incluye las parciales). «De días anteriores» = planificadas para un día que ya pasó.', s.pendAnt?'ambar':''),
-      num(fN(s.recHoy), 'Recorridos de preventa hoy', s.recHoy ? s.zonas+' zonas · '+fN(s.kmRuta)+' km previstos' : 'Sin recorridos cargados', 'Recorridos de Preventa del día (incluye los que llegan solos del TMS). Km previstos = suma del km de ruta de cada recorrido.'),
-      num(fN(s.sucHoy), 'Viajes a sucursales hoy', s.sucHoy ? s.sucursales+' sucursales distintas' : 'Sin viajes cargados', 'Recorridos de Sucursales del día (una fila por sucursal visitada; incluye los del TMS).')
+      num(fPct(s.pct), 'Entregas a sucursales (semana)', s.tot ? s.finD+' de '+s.debidas+' a la fecha · '+s.tot+' en la semana' : 'Sin órdenes a sucursales esta semana', 'Órdenes de carga del TMS, canal Sucursales, de esta semana (una visita por sucursal de cada orden, sin anuladas). Cumplimiento = visitas con la orden Finalizada ÷ visitas que ya tendrían que estar hechas (días anteriores a hoy + las de hoy ya finalizadas). Mismo cálculo que la pestaña Entrega de Sucursales.', sPct),
+      num(fN(s.hoyFin)+' <small>/ '+fN(s.hoyTot)+'</small>', 'Sucursales hoy', s.hoyTot ? 'finalizadas / con orden de carga' : 'Sin órdenes a sucursales hoy', 'Visitas a sucursales con orden de carga del TMS para hoy y cuántas ya tienen la orden Finalizada (el camión volvió).'),
+      num(fN(pendSem), 'Sin finalizar (semana)', s.pendAnt ? s.pendAnt+' de días anteriores' : 'Al día', 'Visitas a sucursales de esta semana cuya orden todavía no está Finalizada en el TMS (Programada, Cargada o En ruta). «De días anteriores» = de un día que ya pasó.', s.pendAnt?'ambar':''),
+      num(fN(s.recHoy), 'Recorridos de preventa hoy', s.recHoy ? s.zonas+' zonas · '+fN(s.kmRuta)+' km previstos' : 'Sin órdenes de preventa hoy', 'Órdenes de carga del TMS, canal Preventa, con fecha de hoy (sin anuladas). '+(s.recHoy?s.recEnRuta+' en ruta y '+s.recFin+' finalizadas. ':'')+'Km previstos = km previstos de cada orden (o la suma del km de sus zonas si la orden no lo tiene).'),
+      num(fN(s.ordenesHoy), 'Viajes a sucursales hoy', s.ordenesHoy ? s.sucursalesHoy+' sucursales distintas' : 'Sin viajes hoy', 'Órdenes de carga del TMS, canal Sucursales, con fecha de hoy (sin anuladas), y cuántas sucursales distintas visitan.')
     ];
-    return bloque({ id:'sucursales', titulo:'Sucursales y preventa', clases:c, abrir:[{tab:'planilla-suc', txt:'Planilla'},{tab:'recorridos', txt:'Recorridos'}],
-      cuerpo:'<div class="tg-nums">'+nums.join('')+'</div>' });
+    return bloque({ id:'sucursales', titulo:'Sucursales y preventa', clases:c, abrir:ab,
+      cuerpo:'<div class="tg-nums">'+nums.join('')+'</div>', pie:'Desde las órdenes de carga del TMS' });
   }
   function bqEcommerce(al){
     const R = TG.ecommerce, x = R && R.datos, ab = [{url:URLS.ecommerce, txt:'Ecommerce'}];
