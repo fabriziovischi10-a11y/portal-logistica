@@ -2297,6 +2297,7 @@
 <button class="sidebar-toggle-btn" id="sidebarToggleBtn" onclick="toggleSidebar()" title="Mostrar/ocultar menú" style="position:sticky;top:66px;margin:14px 0 0 10px;z-index:95;align-self:flex-start;">☰</button>
 
 <div class="tab-bar" id="tabBar">
+  <div class="tab active" onclick="showTab('tablero')">Tablero general</div>
   <div class="tab" onclick="showTab('dashboard')">Dashboard</div>
   <div class="tab" onclick="showTab('kpi')">KPI</div>
   <div class="tab" onclick="showTab('recepciones-prog')">Recepciones Programadas</div>
@@ -2339,7 +2340,7 @@
     </div>
   </div>
 
-  <div class="tab active" onclick="showTab('camiones')">Recepción Camiones</div>
+  <div class="tab" onclick="showTab('camiones')">Recepción Camiones</div>
   <div class="tab" onclick="showTab('config')">Configuración</div>
 
   <!-- Oct. 2026: foto del equipo al pie del menú (se oculta en pantallas
@@ -2352,8 +2353,145 @@
 
 <div class="main">
 
+  <!-- ==================== TAB: TABLERO GENERAL ==================== -->
+  <!-- Nov. 2026: tablero de inicio con los puntos clave de todas las apps del Portal
+       (menos Monitoreo, Asistencia y Conteo de stock). Lo ven todos los usuarios,
+       sin importar las secciones habilitadas en la Torre. La lógica está en el
+       <script> "TABLERO GENERAL" al final de la página (tgInit / tgRender). -->
+  <div class="panel active" id="panel-tablero">
+    <div class="section-header">
+      <div class="section-title">Tablero general <span>LOS PUNTOS CLAVE DE TODAS LAS APPS</span></div>
+      <div class="tg-head-acc">
+        <span class="tg-upd" id="tg-upd">Cargando…</span>
+        <button class="btn btn-primary" id="tg-btn-act" onclick="tgActualizar()">↻ Actualizar</button>
+      </div>
+    </div>
+    <div class="tg-fecha" id="tg-fecha"></div>
+    <div class="tg-alertas" id="tg-alertas"></div>
+    <div class="tg-grid" id="tg-grid"></div>
+    <p class="tg-nota">Tocá cualquier número para ver de dónde sale. Los datos del Parte diario y del TMS se ven en vivo; Gestión de entregas, Ecommerce, Control de vehículos, Combustible y Premio se recalculan como mucho cada 10 a 60 minutos (o al tocar «Actualizar») para no gastar el cupo de lecturas.</p>
+  </div>
+  <style>
+    #panel-tablero > :first-child { --banner: var(--img-hero-poster); --banner-y: 45%; }
+    #panel-tablero {
+      --tg-rojo: #c9082a; --tg-rojo-bg: rgba(201, 8, 42, .08);
+      --tg-ambar: #a86400; --tg-ambar-bg: rgba(214, 140, 0, .12);
+      --tg-verde: #23774a; --tg-verde-bg: rgba(35, 119, 74, .10);
+      --tg-gris: #66708a; --tg-gris-bg: rgba(102, 112, 138, .10);
+    }
+    :root[data-theme="dark"] #panel-tablero {
+      --tg-rojo: #ff7b86; --tg-rojo-bg: rgba(255, 123, 134, .13);
+      --tg-ambar: #f2c14e; --tg-ambar-bg: rgba(242, 193, 78, .13);
+      --tg-verde: #6fd39b; --tg-verde-bg: rgba(111, 211, 155, .12);
+      --tg-gris: #a2acc9; --tg-gris-bg: rgba(162, 172, 201, .12);
+    }
+    .tg-head-acc { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: flex-end; }
+    .tg-upd { font-size: 12px; color: rgba(255, 255, 255, .85); font-weight: 500; }
+    .tg-fecha { font-size: 13px; color: var(--text2); margin: -6px 0 12px; font-weight: 500; }
+    .tg-fecha b { color: var(--text); }
+    /* Franja de alertas */
+    .tg-alertas { display: grid; gap: 8px; margin-bottom: 22px; }
+    .tg-al { display: flex; align-items: flex-start; gap: 10px; padding: 10px 14px; border-radius: 10px; border: 1px solid var(--border);
+      background: var(--card); font-size: 13px; line-height: 1.4; color: var(--text); box-shadow: var(--shadow-sm); }
+    .tg-al .tg-dot { margin-top: 5px; }
+    .tg-al b { font-weight: 700; }
+    .tg-al .tg-al-txt { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+    .tg-al .tg-al-ir { flex-shrink: 0; font-size: 12px; font-weight: 700; color: var(--portal-navy); background: none; border: 0; cursor: pointer; padding: 0; text-decoration: none; white-space: nowrap; }
+    .tg-al.rojo { border-color: color-mix(in srgb, var(--tg-rojo) 45%, var(--border)); background: var(--tg-rojo-bg); }
+    .tg-al.ambar { border-color: color-mix(in srgb, var(--tg-ambar) 45%, var(--border)); background: var(--tg-ambar-bg); }
+    .tg-al.verde { border-color: color-mix(in srgb, var(--tg-verde) 45%, var(--border)); background: var(--tg-verde-bg); }
+    .tg-al.gris { background: var(--tg-gris-bg); }
+    .tg-al-mas { display: grid; gap: 8px; }
+    .tg-al-mas[hidden] { display: none; }
+    .tg-al-btn { justify-self: start; font: 700 12.5px 'IBM Plex Sans', sans-serif; color: var(--portal-navy); background: none; border: 0; padding: 4px 2px; cursor: pointer; }
+    .tg-al-btn:hover { text-decoration: underline; }
+    .tg-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; background: var(--tg-gris); display: inline-block; }
+    .tg-dot.rojo { background: var(--tg-rojo); box-shadow: 0 0 0 3px var(--tg-rojo-bg); }
+    .tg-dot.ambar { background: var(--tg-ambar); box-shadow: 0 0 0 3px var(--tg-ambar-bg); }
+    .tg-dot.verde { background: var(--tg-verde); box-shadow: 0 0 0 3px var(--tg-verde-bg); }
+    /* Grilla de bloques */
+    .tg-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr)); gap: 18px; align-items: start; }
+    .tg-grid > .card { margin-bottom: 0; }
+    .tg-grid > .card:hover { transform: none; }
+    .tg-ancho { grid-column: 1 / -1; }
+    .tg-bq .card-title { justify-content: space-between; flex-wrap: wrap; row-gap: 6px; }
+    .tg-bq .card-title .tg-tit { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    .tg-abrir { display: flex; gap: 12px; flex-wrap: wrap; }
+    .tg-abrir a, .tg-abrir button { font: 700 11.5px 'IBM Plex Sans', sans-serif; letter-spacing: 0; text-transform: none; color: var(--portal-navy);
+      background: none; border: 0; padding: 0; cursor: pointer; text-decoration: none; white-space: nowrap; }
+    .tg-abrir a:hover, .tg-abrir button:hover, .tg-al-ir:hover { text-decoration: underline; }
+    .tg-nums { display: grid; grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); gap: 10px; }
+    .tg-num { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; cursor: pointer; background: var(--surface2);
+      transition: border-color .15s, background .15s; min-width: 0; position: relative; }
+    .tg-num:hover, .tg-num:focus-visible { border-color: var(--portal-navy); outline: none; }
+    .tg-num-l { font-size: 11.5px; color: var(--text2); font-weight: 500; line-height: 1.3; }
+    .tg-num-v { font-family: 'IBM Plex Mono', monospace; font-size: 24px; font-weight: 600; color: var(--text); letter-spacing: -.02em; line-height: 1.15; margin-top: 4px; overflow-wrap: anywhere; }
+    .tg-num-v small { font-size: 13px; font-weight: 500; color: var(--text3); letter-spacing: 0; }
+    .tg-num-s { font-size: 11px; color: var(--text3); margin-top: 3px; line-height: 1.3; }
+    .tg-num.rojo { border-color: color-mix(in srgb, var(--tg-rojo) 40%, var(--border)); background: var(--tg-rojo-bg); }
+    .tg-num.rojo .tg-num-v { color: var(--tg-rojo); }
+    .tg-num.ambar { border-color: color-mix(in srgb, var(--tg-ambar) 40%, var(--border)); background: var(--tg-ambar-bg); }
+    .tg-num.ambar .tg-num-v { color: var(--tg-ambar); }
+    .tg-num.verde .tg-num-v { color: var(--tg-verde); }
+    .tg-num.tg-txt .tg-num-v { font-family: inherit; font-size: 17px; font-weight: 700; letter-spacing: 0; }
+    .tg-ctx { font-size: 12.5px; color: var(--text2); margin-top: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+    .tg-ctx b { color: var(--text); }
+    .tg-pie { font-size: 11px; color: var(--text3); margin-top: 10px; }
+    .tg-vacio { font-size: 13px; color: var(--text3); padding: 6px 0; }
+    .tg-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+    .tg-chip { font-size: 11.5px; padding: 3px 9px; border-radius: 999px; background: var(--surface2); border: 1px solid var(--border); color: var(--text2); white-space: nowrap; }
+    .tg-chip.rojo { color: var(--tg-rojo); background: var(--tg-rojo-bg); border-color: transparent; }
+    .tg-chip.ambar { color: var(--tg-ambar); background: var(--tg-ambar-bg); border-color: transparent; }
+    /* Depósitos */
+    .tg-deps { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr)); gap: 12px; }
+    .tg-dep { border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; background: var(--surface2); cursor: pointer; min-width: 0; }
+    .tg-dep:hover { border-color: var(--portal-navy); }
+    .tg-dep-h { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+    .tg-dep-n { font-weight: 700; color: var(--text); font-size: 14px; }
+    .tg-dep-pct { font-family: 'IBM Plex Mono', monospace; font-size: 22px; font-weight: 600; }
+    .tg-dep-pct.rojo { color: var(--tg-rojo); } .tg-dep-pct.ambar { color: var(--tg-ambar); } .tg-dep-pct.verde { color: var(--tg-verde); }
+    .tg-bar { height: 8px; border-radius: 99px; background: color-mix(in srgb, var(--border) 70%, transparent); overflow: hidden; margin: 8px 0 10px; }
+    .tg-bar i { display: block; height: 100%; border-radius: inherit; background: var(--tg-verde); }
+    .tg-bar i.ambar { background: var(--tg-ambar); } .tg-bar i.rojo { background: var(--tg-rojo); }
+    .tg-dep-f { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; font-size: 12px; color: var(--text2); }
+    .tg-dep-f b { font-family: 'IBM Plex Mono', monospace; color: var(--text); font-weight: 600; }
+    .tg-dep-f .rojo b { color: var(--tg-rojo); } .tg-dep-f .ambar b { color: var(--tg-ambar); }
+    .tg-playones { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr)); gap: 10px; margin-top: 12px; }
+    .tg-lista { list-style: none; margin: 10px 0 0; padding: 0; font-size: 12.5px; color: var(--text2); }
+    .tg-lista li { display: flex; justify-content: space-between; gap: 10px; padding: 5px 0; border-top: 1px dashed var(--border); }
+    .tg-lista li:first-child { border-top: 0; }
+    .tg-recep-cols { display: grid; grid-template-columns: 1.4fr 1fr; gap: 18px; margin-top: 14px; }
+    @media (max-width: 760px) { .tg-recep-cols { grid-template-columns: 1fr; } }
+    .tg-sub { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text3); margin-bottom: 6px; }
+    .tg-sub small { text-transform: none; letter-spacing: 0; font-weight: 500; }
+    .tg-rank { list-style: none; margin: 0; padding: 0; }
+    .tg-rank li { display: grid; grid-template-columns: 22px 1fr auto; gap: 10px; align-items: center; padding: 7px 0; border-top: 1px dashed var(--border); }
+    .tg-rank li:first-child { border-top: 0; }
+    .tg-rank-n { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; font-weight: 800; background: var(--surface2); color: var(--text2); }
+    .tg-rank li:first-child .tg-rank-n { background: var(--portal-navy, #1a3a6b); color: #fff; }
+    .tg-rank-p { min-width: 0; display: grid; gap: 2px; font-size: 13px; }
+    .tg-rank-p b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .tg-rank-p small { font-size: 11px; color: var(--text3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .tg-rank-bar { display: block; height: 5px; border-radius: 4px; background: var(--surface2); overflow: hidden; }
+    .tg-rank-bar i { display: block; height: 100%; background: var(--portal-navy, #1a3a6b); border-radius: 4px; }
+    .tg-rank-v { text-align: right; font-family: 'IBM Plex Mono', monospace; font-weight: 700; font-size: 14px; display: grid; }
+    .tg-rank-v small { font-size: 10.5px; font-weight: 500; color: var(--text3); }
+    .tg-lista li span:last-child { font-family: 'IBM Plex Mono', monospace; color: var(--text); white-space: nowrap; }
+    .tg-nota { font-size: 11.5px; color: var(--text3); margin: 18px 2px 0; line-height: 1.5; }
+    .tg-skel { height: 64px; border-radius: 10px; background: linear-gradient(90deg, var(--surface2), color-mix(in srgb, var(--border) 50%, var(--surface2)), var(--surface2)); background-size: 200% 100%; animation: tgSkel 1.4s ease-in-out infinite; }
+    @keyframes tgSkel { 0% { background-position: 100% 0; } 100% { background-position: -100% 0; } }
+    @media (prefers-reduced-motion: reduce) { .tg-skel { animation: none; } }
+    @media (max-width: 600px) {
+      #panel-tablero .section-header { flex-wrap: wrap; gap: 10px; }
+      .tg-head-acc { justify-content: flex-start; }
+      .tg-num-v { font-size: 21px; }
+      .tg-nums { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .card.tg-bq { padding: 16px 14px; }
+    }
+  </style>
+
   <!-- ==================== TAB: CAMIONES ==================== -->
-  <div class="panel active" id="panel-camiones">
+  <div class="panel" id="panel-camiones">
     <div class="section-header">
       <div class="section-title">Recepción de Camiones <span>CARGA DIARIA</span></div>
       <button class="btn btn-primary" onclick="openCamionForm()">+ Nueva Carga</button>
@@ -11785,6 +11923,7 @@ function showTab(name) {
   event.target.classList.add('active');
   document.getElementById('panel-' + name).classList.add('active');
   actualizarGrupoActivo(event.target);
+  if(name === 'tablero') { tgInit(); }
   if(name === 'dashboard') { dashInit(); }
   if(name === 'kpi') { kpiInit(); }
   if(name === 'recepciones-prog') { repInit(); }
@@ -13787,6 +13926,7 @@ function showTabByName(name) {
   if (tabEl) tabEl.classList.add('active');
   document.getElementById('panel-' + name).classList.add('active');
   actualizarGrupoActivo(tabEl);
+  if (name === 'tablero')       tgInit();
   if (name === 'dashboard')     dashInit();
   if (name === 'kpi')           kpiInit();
   if (name === 'flota-venc')    { fvInit(); snInit(); }
@@ -22020,7 +22160,7 @@ function enviosRenderDonut(canvasId, legendId, unidadesSuc, unidadesPrev) {
   if(!window.PortalAcceso) return;
   PortalAcceso.listo.then(function(yo){
     var s=yo&&yo.secciones; if(!s||!s.length) return;
-    var ok=function(n){return s.indexOf(n)>=0};
+    var ok=function(n){return n==='tablero'||s.indexOf(n)>=0}; /* el Tablero general lo ven todos */
     document.querySelectorAll('#tabBar .tab').forEach(function(t){var m=(t.getAttribute('onclick')||'').match(/showTab\('([a-z-]+)'\)/);if(m&&!ok(m[1]))t.style.display='none'});
     document.querySelectorAll('#tabBar .tab-group').forEach(function(g){var v=[].some.call(g.querySelectorAll('.tab-sub'),function(t){return t.style.display!=='none'});if(!v)g.style.display='none'});
     var st=window.showTab,sn=window.showTabByName;
@@ -22045,6 +22185,7 @@ function enviosRenderDonut(canvasId, legendId, unidadesSuc, unidadesPrev) {
   const RT={suc:null,prev:null,cam:null};
   let cfgListo=false, pendiente=null;
   window.tmsSyncEstado={conectado:false,suc:0,prev:0,cam:0,error:""};
+  window.__tmsDatos=T; // Tablero general: lee lo que ya trae esta conexión (no suma lecturas)
 
   function listaPersonal(){ return (typeof CFG_PERSONAL!=="undefined"&&CFG_PERSONAL.length)?CFG_PERSONAL:(typeof REC_PERSONAL!=="undefined"?REC_PERSONAL:[]); }
   function listaFlota(){ return (typeof CFG_FLOTA!=="undefined"&&CFG_FLOTA.length)?CFG_FLOTA:(typeof REC_FLOTA!=="undefined"?REC_FLOTA:[]); }
@@ -22149,6 +22290,7 @@ function enviosRenderDonut(canvasId, legendId, unidadesSuc, unidadesPrev) {
   }
   function sincronizar(){
     clearTimeout(pendiente);
+    try{ dispatchEvent(new Event("tmsdatos")); }catch(e){} // avisa al Tablero general que hay datos nuevos
     pendiente=setTimeout(()=>{
       if(!T.salidas||RT.suc===null||RT.prev===null||!cfgListo) return;
       const qs=deseadosSuc(), qp=deseadosPrev(), upd={};
@@ -22186,6 +22328,7 @@ function enviosRenderDonut(canvasId, legendId, unidadesSuc, unidadesPrev) {
       const modular=app._delegate.container.getProvider("firestore").getImmediate({identifier:"default"}); // la base del TMS se llama "default"
       const fs=new firebase.firestore.Firestore(app,modular);
       try{ fs.settings({experimentalAutoDetectLongPolling:true,merge:true}); }catch(e){}
+      window.__tmsFs=fs; // el Tablero general reusa esta conexión para sus lecturas cacheadas
       const mapa=k=>s=>{ T[k]={}; s.docs.forEach(d=>T[k][d.id]=d.data()); sincronizar(); };
       ["choferes","personal","camiones","sucursales","zonas"].forEach(k=>fs.collection(RAIZ+k).onSnapshot(mapa(k),e=>console.error("TMS",k,e)));
       fs.collection(RAIZ+"recepciones").where("fecha",">=",DESDE).onSnapshot(s=>{ T.recepciones=s.docs.map(d=>Object.assign({id:d.id},d.data())); sincronizar(); },
@@ -22196,6 +22339,736 @@ s=>{ T.salidas=s.docs.map(d=>Object.assign({id:d.id},d.data())); sincronizar(); 
     }catch(e){ console.error("TMS sync",e); window.tmsSyncEstado.error="sin conexión"; pintarEstado(); }
   }
   addEventListener("load",iniciar);
+})();
+</script>
+
+<!-- ================= TABLERO GENERAL (Nov. 2026) =================
+     Resumen de todas las apps del Portal en la primera pestaña del Parte diario.
+     · En vivo (sin costo extra): Parte diario (RTDB ya en memoria), TMS (salidas/recepciones/camiones que ya lee
+       la conexión TMS: window.__tmsDatos), depósitos (RTDB tablero/depositos) y aptitud (RTDB tms_aptitud).
+     · Con caché en la RTDB (tablero/cache/<bloque> = {at, datos}): Gestión de entregas (gestientrega-portal),
+       Ecommerce, Control de vehículos, Combustible y Premio (ecommerce-e7ab2). Si el caché es más nuevo que su TTL
+       no se consulta Firestore; «Actualizar» fuerza el recálculo. -->
+<script>
+(function(){
+  'use strict';
+  const TTL = { entregas: 10, ecommerce: 10, vehiculos: 10, combustible: 60, premio: 60 }; // minutos
+  const URLS = {
+    tms: 'https://fabriziovischi10-a11y.github.io/ecommerceportal/hoja-de-ruta.html',
+    dep3d: 'https://fabriziovischi10-a11y.github.io/ecommerceportal/depositos-3d.html',
+    entregas: 'https://fabriziovischi10-a11y.github.io/ecommerceportal/entregas/admin.html',
+    ecommerce: 'https://fabriziovischi10-a11y.github.io/ecommerceportal/portal-entregas-firebase.html',
+    vehiculos: 'https://fabriziovischi10-a11y.github.io/ecommerceportal/vehiculos.html',
+    premio: 'https://fabriziovischi10-a11y.github.io/ecommerceportal/premio.html'
+  };
+  const TMS_CFG = {apiKey:"AIzaSyCLP890Q5hyuqSs82vyF0rk9VhEg0pBlCA",authDomain:"ecommerce-e7ab2.firebaseapp.com",projectId:"ecommerce-e7ab2",storageBucket:"ecommerce-e7ab2.firebasestorage.app",messagingSenderId:"237845351422",appId:"1:237845351422:web:6350a5c3e103b088cf4eaf"};
+  const ENT_CFG = {apiKey:"AIzaSyCbz7XLb9jLjlvwEz-NG_jyEPdFwWob7SM",authDomain:"gestientrega-portal.firebaseapp.com",projectId:"gestientrega-portal",storageBucket:"gestientrega-portal.firebasestorage.app",messagingSenderId:"639729899204",appId:"1:639729899204:web:3609e16c548801e1821b91"};
+  const DESDE_CONTROL = "2026-11-03T16:50:00.000Z"; // mismo corte que Recepción de vehículos
+  const META_KML = 3.5;          // meta de consumo de la flota del Tablero de KPI del TMS
+  const OBJ_EFECTIVIDAD = 95;    // % de facturas entregadas sobre las gestionadas
+
+  const TG = { iniciado:false, dep:null, apt:null, fs:{}, cargando:{}, error:{}, ultimoVivo:null, timerVivo:null };
+  window.__tablero = TG;
+
+  // ── utilidades ────────────────────────────────────────────────
+  const pad = n => String(n).padStart(2,'0');
+  const isoL = d => d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+  const hoyL = () => isoL(new Date());
+  const addD = (iso,n) => { const d = new Date(iso+'T00:00:00'); d.setDate(d.getDate()+n); return isoL(d); };
+  const lunesDe = iso => { const d = new Date(iso+'T00:00:00'); d.setDate(d.getDate()-((d.getDay()+6)%7)); return isoL(d); };
+  const diasEntre = (a,b) => Math.round((new Date(b+'T00:00:00') - new Date(a+'T00:00:00'))/864e5);
+  const esc = s => String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const N = v => Number(v)||0;
+  const fN = (n,d) => (n==null||!isFinite(n)) ? '—' : Number(n).toLocaleString('es-AR',{maximumFractionDigits:d==null?0:d, minimumFractionDigits:0});
+  const fPct = n => (n==null||!isFinite(n)) ? '—' : Math.round(n)+'%';
+  function fM(n){ if(n==null||!isFinite(n)) return '—'; const a=Math.abs(n);
+    if(a>=1e6) return '$ '+(n/1e6).toLocaleString('es-AR',{maximumFractionDigits:a<1e7?2:1})+' M';
+    if(a>=1e4) return '$ '+Math.round(n/1e3).toLocaleString('es-AR')+' mil';
+    return '$ '+Math.round(n).toLocaleString('es-AR'); }
+  const fD = iso => iso ? iso.slice(8,10)+'/'+iso.slice(5,7) : '—';
+  const fHora = d => pad(d.getHours())+':'+pad(d.getMinutes());
+  function haceTxt(at){ const m = Math.round((Date.now()-Date.parse(at))/60000); if(!isFinite(m)) return '';
+    return m<1 ? 'recién' : m<60 ? 'hace '+m+' min' : 'hace '+Math.floor(m/60)+' h '+(m%60? (m%60)+' min':''); }
+  const peor = arr => arr.includes('rojo')?'rojo':arr.includes('ambar')?'ambar':arr.includes('verde')?'verde':'';
+  const varPct = (a,b) => b ? Math.round((a-b)/b*100) : null;
+  function varTxt(a,b,sufijo){ if(!b) return ''; const v=varPct(a,b); return (v>0?'+':'')+v+'% '+(sufijo||''); }
+  const placa = s => String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+  // Datos del Parte diario ya en memoria (variables globales de sus listeners de la RTDB)
+  const PD = {
+    camiones: () => typeof camiones!=="undefined" ? camiones : [],
+    recepcionesProg: () => typeof recepcionesProg!=="undefined" ? recepcionesProg : [],
+    plData: () => typeof plData!=="undefined" ? plData : {},
+    recorridosPorSemana: () => typeof recorridosPorSemana!=="undefined" ? recorridosPorSemana : {},
+    sucursalesPorSemana: () => typeof sucursalesPorSemana!=="undefined" ? sucursalesPorSemana : {},
+    bajasDeposito: () => typeof bajasDeposito!=="undefined" ? bajasDeposito : [],
+    bajasPreventa: () => typeof bajasPreventa!=="undefined" ? bajasPreventa : [],
+    rechazoPVData: () => typeof rechazoPVData!=="undefined" ? rechazoPVData : []
+  };
+  const G = nombre => PD[nombre]();
+  const arr = v => Array.isArray(v) ? v : (v && typeof v === 'object' ? Object.values(v) : []);
+
+  // ── piezas de HTML ────────────────────────────────────────────
+  function num(valor, label, sub, info, cls){
+    return '<div class="tg-num '+(cls||'')+'" tabindex="0" role="button" onclick="mostrarInfoTarjeta(this,event)" onkeydown="if(event.key===\'Enter\')mostrarInfoTarjeta(this,event)"'+
+      ' data-info-title="'+esc(label)+'" data-info-body="'+esc(info)+'">'+
+      '<div class="tg-num-l">'+esc(label)+'</div><div class="tg-num-v">'+valor+'</div>'+(sub?'<div class="tg-num-s">'+sub+'</div>':'')+'</div>';
+  }
+  function abrirHTML(links){
+    return '<span class="tg-abrir">'+(links||[]).map(l => l.url
+      ? '<a href="'+l.url+'" target="_blank" rel="noopener">'+esc(l.txt||'Abrir')+' →</a>'
+      : (tabVisible(l.tab) ? '<button type="button" onclick="tgAbrir(\''+l.tab+'\')">'+esc(l.txt||'Abrir')+' →</button>' : '')).join('')+'</span>';
+  }
+  function bloque(o){
+    const estado = o.estado || peor((o.clases||[]));
+    return '<div class="card tg-bq'+(o.ancho?' tg-ancho':'')+'" id="tg-bq-'+o.id+'">'+
+      '<div class="card-title"><span class="tg-tit"><span class="tg-dot '+estado+'"></span>'+esc(o.titulo)+'</span>'+abrirHTML(o.abrir)+'</div>'+
+      (o.cuerpo || '')+
+      (o.ctx ? '<div class="tg-ctx">'+o.ctx+'</div>' : '')+
+      (o.pie ? '<div class="tg-pie">'+o.pie+'</div>' : '')+'</div>';
+  }
+  const skel = n => '<div class="tg-nums">'+Array.from({length:n||4},()=>'<div class="tg-skel"></div>').join('')+'</div>';
+  function tabVisible(tab){
+    const t = Array.from(document.querySelectorAll('#tabBar .tab')).find(x => (x.getAttribute('onclick')||'').includes("'"+tab+"'"));
+    if(!t) return false;
+    const g = t.closest('.tab-group');
+    return t.style.display!=='none' && (!g || g.style.display!=='none');
+  }
+  window.tgAbrir = function(tab){
+    if(typeof showTabByName==='function') showTabByName(tab);
+    try { window.scrollTo({top:0,behavior:'smooth'}); } catch(e) { window.scrollTo(0,0); }
+  };
+
+  // ── Firestore (solo lecturas) ────────────────────────────────
+  async function esperar(cond, ms){ const t0=Date.now(); while(!cond()){ if(Date.now()-t0>ms) return false; await new Promise(r=>setTimeout(r,300)); } return true; }
+  async function usuarioAnonimo(auth){
+    const u = await new Promise(r => { const off = auth.onAuthStateChanged(x => { off(); r(x); }); });
+    if(!u) await auth.signInAnonymously();
+  }
+  async function fsTms(){
+    if(TG.fs.tms) return TG.fs.tms;
+    // Reusa la conexión que abre el bloque "Conexión con el TMS" (misma app "tms" y misma base "default")
+    await esperar(() => window.__tmsFs, 12000);
+    if(window.__tmsFs) return TG.fs.tms = window.__tmsFs;
+    const app = firebase.apps.find(a=>a.name==='tms') || firebase.initializeApp(TMS_CFG,'tms');
+    await usuarioAnonimo(app.auth());
+    const modular = app._delegate.container.getProvider('firestore').getImmediate({identifier:'default'});
+    return TG.fs.tms = new firebase.firestore.Firestore(app, modular);
+  }
+  async function fsEntregas(){
+    if(TG.fs.ent) return TG.fs.ent;
+    const app = firebase.apps.find(a=>a.name==='entregas') || firebase.initializeApp(ENT_CFG,'entregas');
+    await usuarioAnonimo(app.auth());
+    return TG.fs.ent = app.firestore();
+  }
+  const LISTAS = { entregas:['motivos'], ecommerce:['zonasTop'], vehiculos:['paraControlar','malas'], combustible:['alertas'], premio:['ranking'] };
+  // Caché compartido en la RTDB pública: tablero/cache/<bloque> = {at, datos}
+  async function cacheado(nombre, calc, forzar){
+    const ref = db.ref('tablero/cache/'+nombre);
+    if(!forzar){
+      try {
+        const v = (await ref.once('value')).val();
+        if(v && v.at && v.datos && Date.now()-Date.parse(v.at) < TTL[nombre]*60000) {
+          (LISTAS[nombre]||[]).forEach(k => { if(!Array.isArray(v.datos[k])) v.datos[k] = arr(v.datos[k]); }); // la RTDB no guarda listas vacías
+          return { datos:v.datos, at:v.at, cache:true };
+        }
+      } catch(e) { console.warn('tablero cache', nombre, e); }
+    }
+    const datos = await calc();
+    const at = new Date().toISOString();
+    ref.set({ at, datos: JSON.parse(JSON.stringify(datos)) }).catch(e => console.warn('tablero cache (guardar)', nombre, e));
+    return { datos, at, cache:false };
+  }
+
+  // ── Cálculos que van a Firestore (cacheados) ─────────────────
+  const MOTIVOS = { no_money:'Sin dinero', not_authorized:'No autorizado', closed:'Cliente cerrado', damaged:'Mercadería dañada', wrong_order:'Pedido equivocado', other:'Otro motivo' };
+  function sumaCheques(v){ if(typeof v==='string'){ try{ v=JSON.parse(v); }catch(e){ v=[]; } } return (Array.isArray(v)?v:[]).reduce((t,x)=>t+N(x),0); }
+  async function calcEntregas(){
+    const fs = await fsEntregas();
+    const col = n => fs.collection('entregas').doc('datos').collection(n);
+    const hoy = hoyL();
+    let dia = hoy, rs = await col('routes').where('serviceDate','==',hoy).get();
+    if(rs.empty){
+      const u = await col('routes').where('serviceDate','<',hoy).orderBy('serviceDate','desc').limit(1).get();
+      if(u.empty) return { dia:null };
+      dia = u.docs[0].data().serviceDate;
+      rs = await col('routes').where('serviceDate','==',dia).get();
+    }
+    const [inv, cc, ex] = await Promise.all(['invoices','cashClosures','expenses'].map(c => col(c).where('serviceDate','==',dia).get()));
+    const rutas = rs.docs.map(d=>d.data()), facts = inv.docs.map(d=>d.data());
+    const fac = facts.filter(f => N(f.amount) >= 0); // las notas de crédito (importe negativo) no cuentan como entrega
+    const ent = fac.filter(f=>f.status==='delivered'), rech = fac.filter(f=>f.status==='issue'), pen = fac.filter(f=>f.status==='pending');
+    const netoDe = f => (f.netAmount!=null && f.netAmount!=='') ? N(f.netAmount) : N(f.amount)-N(f.discountAmount);
+    let neto=0, cta=0, efectivo=0, cheques=0, transf=0;
+    facts.forEach(f => { if(f.status!=='delivered') return; const net=netoDe(f); neto+=net;
+      cta += (f.paymentMethod==='account' && !N(f.accountAmount)) ? net : N(f.accountAmount);
+      efectivo += N(f.cashAmount); cheques += sumaCheques(f.checkAmounts); transf += N(f.transferAmount); });
+    const notas = ent.map(f => { const v=[f.punctualityRating,f.serviceRating,f.overallRating].map(N).filter(x=>x>0); return v.length ? v.reduce((a,b)=>a+b,0)/v.length : 0; }).filter(x=>x>0);
+    const mot = {}; rech.forEach(f => { const k = MOTIVOS[f.rejectionReason] || (f.rejectionReason ? String(f.rejectionReason) : 'Sin motivo'); mot[k]=(mot[k]||0)+1; });
+    const choferes = new Set(rutas.filter(r=>r.driverId!=null).map(r=>String(r.driverId)));
+    return {
+      dia, rutas: rutas.length, cerradas: rutas.filter(r=>r.status==='completed').length, sinChofer: rutas.filter(r=>r.driverId==null).length,
+      facturas: fac.length, entregadas: ent.length, parciales: ent.filter(f=>f.deliveryType==='partial').length,
+      pendientes: pen.length, rechazadas: rech.length,
+      importe: fac.reduce((t,f)=>t+N(f.amount),0), importePend: pen.reduce((t,f)=>t+N(f.amount),0),
+      importeRech: rech.reduce((t,f)=>t+N(f.amount),0), neto, cta, efectivo, cheques, transf,
+      encuesta: notas.length ? notas.reduce((a,b)=>a+b,0)/notas.length : null, encuestas: notas.length,
+      motivos: Object.entries(mot).sort((a,b)=>b[1]-a[1]).slice(0,3),
+      choferes: choferes.size, cajas: cc.size, gastos: ex.docs.reduce((t,d)=>t+N(d.data().amount),0),
+      lecturas: rs.size + inv.size + cc.size + ex.size
+    };
+  }
+  function parseImporte(raw){ if(raw==null) return 0; const s=String(raw).trim(); if(!s) return 0;
+    const n=parseFloat(s.replace(/\./g,'').replace(',', '.').replace(/[^\d.-]/g,'')); return isNaN(n)?0:n; }
+  async function calcEcommerce(){
+    const fs = await fsTms(); const hoy = hoyL();
+    const [fz, hd, mz] = await Promise.all([
+      fs.collection('facturas_por_zona').get(),
+      fs.collection('historial_dias').where('fecha','==',hoy).get(),
+      fs.collection('meta').doc('zonas').get().catch(()=>null)
+    ]);
+    const zonas = {}; ((mz && mz.exists && mz.data().list) || []).forEach(z => { if(z && z.id!=null) zonas[z.id] = z.nombre || z.name || String(z.id); });
+    const activas = []; fz.docs.forEach(d => (d.data().list||[]).forEach(f => activas.push(Object.assign({zonaId:d.id}, f))));
+    const dHora = f => f.fechaHora ? isoL(new Date(f.fechaHora)) : '';
+    const entHoy = new Map();
+    activas.filter(f => f.estado==='entregado' && dHora(f)===hoy).forEach(f => entHoy.set(f.id||f.factura, f));
+    hd.docs.forEach(d => (d.data().facturas||[]).forEach(f => { if(f.estado==='entregado') entHoy.set(f.id||f.factura, f); }));
+    const pend = activas.filter(f => f.estado==='pendiente');
+    const atras = pend.filter(f => { const ref = f.fechaEntrega || f.fechaCarga; return ref && String(ref).slice(0,10) < hoy; });
+    const porZona = {}; pend.forEach(f => { const z = zonas[f.zonaId] || ('Zona '+f.zonaId); porZona[z]=(porZona[z]||0)+1; });
+    const entregadasHoy = Array.from(entHoy.values());
+    return {
+      pendientes: pend.length, importePend: pend.reduce((t,f)=>t+parseImporte(f.importe),0),
+      atrasadas: atras.length, entregadasHoy: entregadasHoy.length, importeEntHoy: entregadasHoy.reduce((t,f)=>t+parseImporte(f.importe),0),
+      web: pend.filter(f=>f.origen==='web').length,
+      zonasTop: Object.entries(porZona).sort((a,b)=>b[1]-a[1]).slice(0,4),
+      lecturas: fz.size + hd.size + 1
+    };
+  }
+  const regresoISO = s => new Date(s.fecha+'T'+(/^\d{1,2}:\d{2}/.test(s.horaRegreso||'') ? s.horaRegreso.padStart(5,'0') : '00:00')).toISOString();
+  async function calcVehiculos(){
+    await esperar(() => window.__tmsDatos && window.__tmsDatos.salidas && Object.keys(window.__tmsDatos.camiones||{}).length, 20000);
+    const T = window.__tmsDatos || {}; const hoy = hoyL();
+    const CAM = Object.entries(T.camiones||{}).map(([id,c]) => Object.assign({id}, c)).filter(c => c.estado!=='Baja');
+    const SAL = (T.salidas||[]).filter(s => s.estado!=='Anulada' && s.fecha && s.fecha<=hoy)
+      .sort((a,b) => b.fecha.localeCompare(a.fecha) || (b.nro||0)-(a.nro||0));
+    const cands = CAM.map(c => ({cam:c, sal:SAL.find(x => x.camionId===c.id || x.acopladoId===c.id)}))
+      .filter(x => x.sal && x.sal.estado==='Finalizada' && regresoISO(x.sal) >= DESDE_CONTROL);
+    const hace7 = new Date(Date.now()-7*864e5).toISOString();
+    const desde = [hace7].concat(cands.map(x => regresoISO(x.sal))).sort()[0];
+    const fs = await fsTms();
+    const snap = await fs.collection('vehiculos').doc('datos').collection('recepciones').where('fecha','>=',desde).get();
+    const recs = snap.docs.map(d => { const r = d.data(); return { camionId:r.camionId, salidaId:r.salidaId, fecha:String(r.fecha||''), estrellas:r.estrellas, patente:r.patente, alertas:(r.alertas||[]).length }; });
+    const ctrl = cands.filter(x => !recs.find(r => r.camionId===x.cam.id && (r.salidaId===x.sal.id || r.fecha >= regresoISO(x.sal))))
+      .sort((a,b) => regresoISO(b.sal).localeCompare(regresoISO(a.sal)));
+    const chofer = id => ((T.choferes||{})[id] || (T.personal||{})[id] || {}).nombre || '';
+    const ult7 = recs.filter(r => r.fecha >= hace7).sort((a,b) => b.fecha.localeCompare(a.fecha));
+    const ultimaPorCam = {}; ult7.forEach(r => { if(!ultimaPorCam[r.camionId]) ultimaPorCam[r.camionId] = r; });
+    const est = ult7.map(r => r.estrellas).filter(v => v!=null && v!=='' && isFinite(v)).map(Number);
+    const hoyRecs = recs.filter(r => r.fecha && isoL(new Date(r.fecha))===hoy);
+    return {
+      paraControlar: ctrl.map(x => ({ patente:x.cam.patente||'', regreso:regresoISO(x.sal), chofer:chofer(x.sal.choferId), nro:x.sal.nro||'' })),
+      recepcionesHoy: hoyRecs.length, alertasHoy: hoyRecs.reduce((t,r)=>t+r.alertas,0),
+      recepciones7: ult7.length, promedio7: est.length ? est.reduce((a,b)=>a+b,0)/est.length : null,
+      malas: Object.values(ultimaPorCam).filter(r => r.estrellas!=null && r.estrellas!=='' && Number(r.estrellas)<=2).map(r => ({patente:r.patente||'', estrellas:Number(r.estrellas)})),
+      lecturas: snap.size
+    };
+  }
+  async function calcCombustible(){
+    await esperar(() => window.__tmsDatos && Object.keys(window.__tmsDatos.camiones||{}).length, 20000);
+    const T = window.__tmsDatos || {}; const hoy = hoyL();
+    const fs = await fsTms();
+    const snap = await fs.collection('hojaruta').doc('datos').collection('gasoil').where('fecha','>=',addD(hoy,-40)).get();
+    const GS = snap.docs.map(d => Object.assign({id:d.id}, d.data()));
+    // gasConsumo() del TMS: km desde la carga anterior del mismo camión ÷ litros de esta carga
+    const by = {}, res = {};
+    GS.filter(g => g.camionId && N(g.km)>0).forEach(g => (by[g.camionId]=by[g.camionId]||[]).push(g));
+    Object.values(by).forEach(a => {
+      a.sort((x,y) => x.km-y.km || String(x.fecha).localeCompare(String(y.fecha)) || String(x.hora||'').localeCompare(String(y.hora||'')));
+      const grp = []; a.forEach(g => { const last = grp[grp.length-1]; if(last && N(g.km)===last.km) last.items.push(g); else grp.push({km:N(g.km), items:[g]}); });
+      for(let i=1;i<grp.length;i++){ const d = grp[i].km-grp[i-1].km, l = grp[i].items.reduce((t,x)=>t+N(x.litros),0);
+        if(d>0 && d<6000 && l>0 && d/l>=.8 && d/l<=20) grp[i].items.forEach((x,j) => { res[x.id] = {km: j===0?d:0}; }); }
+    });
+    // camConsumo30() + camAlertas() del TMS
+    const d0 = addD(hoy,-30), porCam = {}; let kmF=0, lF=0;
+    GS.forEach(g => { const c = res[g.id]; if(c && g.fecha>=d0){ const x = porCam[g.camionId] = porCam[g.camionId] || {km:0,l:0,n:0}; x.km+=c.km; x.l+=N(g.litros); x.n++; kmF+=c.km; lF+=N(g.litros); } });
+    const alertas = [];
+    Object.entries(porCam).forEach(([camId,x]) => {
+      if(!(x.l && x.km>=300 && x.n>=2)) return;
+      const c = (T.camiones||{})[camId] || {}, ref = N(c.consumoKmL), kml = x.km/x.l;
+      if(!ref) return;
+      if(kml < ref*0.8) alertas.push({tipo:'exceso', patente:c.patente||'', kml, ref, pct:Math.round((ref/kml-1)*100)});
+      else if(kml > ref*1.5) alertas.push({tipo:'raro', patente:c.patente||'', kml, ref});
+    });
+    const mes = hoy.slice(0,8)+'01', gm = GS.filter(g => g.fecha >= mes);
+    const imp = g => (g.importe!=null && g.importe!=='') ? N(g.importe) : N(g.litros)*N(g.precio);
+    return {
+      kmlFlota: lF ? kmF/lF : null, kmFlota: kmF, medidos: Object.values(porCam).filter(x => x.l && x.km>=300 && x.n>=2).length,
+      litrosMes: gm.reduce((t,g)=>t+N(g.litros),0), importeMes: gm.reduce((t,g)=>t+imp(g),0), cargasMes: gm.length,
+      alertas: alertas.sort((a,b)=>(b.pct||0)-(a.pct||0)), lecturas: snap.size
+    };
+  }
+  async function calcPremio(){
+    const fs = await fsTms(); const mes = new Date().toISOString().slice(0,7);
+    const [cs, rs] = await Promise.all([ fs.doc('premio/datos/config/main').get(), fs.collection('premio/datos/records').where('month','==',mes).get() ]);
+    const cfg = cs.exists ? cs.data() : null; const recs = rs.docs.map(d=>d.data());
+    if(!cfg || !Array.isArray(cfg.tasks)) return { mes, sinConfig:true, lecturas: rs.size+1 };
+    const higher = { auditoria:true, puntaje:true, tiempo:false, cantidad:false };
+    function aggregate(m, r){ r = r.filter(x=>x.metricId===m.id); if(!r.length) return null;
+      if(m.kind==='auditoria'){ const c=r.reduce((a,x)=>a+N(x.correct),0), t=r.reduce((a,x)=>a+N(x.total),0); return t ? c/t*100 : null; }
+      if(m.kind==='cantidad') return r.reduce((a,x)=>a+N(x.value),0);
+      return r.reduce((a,x)=>a+N(x.value),0)/r.length; }
+    function compliance(m, v){ if(v==null) return null; const t=+m.target;
+      if(higher[m.kind]) return t>0 ? Math.min(v/t,1) : 1; if(v<=t) return 1; return v>0 ? Math.max(t/v,0) : 1; }
+    function scoreOne(task, r){ let sw=0, sc=0, missing=0; (task.metrics||[]).forEach(m => { const c = compliance(m, aggregate(m, r)), w = +m.weight||1; if(c==null) missing++; else { sw+=w; sc+=w*c; } });
+      return { score: sw ? sc/sw*100 : null, complete: (task.metrics||[]).length>0 && missing===0 }; }
+    const people = {}; (cfg.people||[]).forEach(p => people[p.id] = p.name);
+    const memberIds = tm => (tm.members||[]).filter(Boolean);
+    const teamLabel = (task, tm) => { const ids = memberIds(tm); if((+task.teamSize||4)===1 && ids.length===1 && /^Equipo \d+$/.test(tm.name||'')) return people[ids[0]]||tm.name; return tm.name; };
+    const th = +cfg.threshold||0, out = [];
+    cfg.tasks.forEach(task => { const tr = recs.filter(r=>r.taskId===task.id), teams = (task.teams||[]).filter(x=>x&&x.id);
+      const grupo = teams.length ? teams.map(team => Object.assign({task, team}, scoreOne(task, tr.filter(r=>r.teamId===team.id)))) : [Object.assign({task, team:null}, scoreOne(task, tr))];
+      grupo.forEach(g => g.eligible = g.complete && g.score!=null && g.score>=th); out.push(...grupo); });
+    out.sort((a,b) => (b.score ?? -1) - (a.score ?? -1));
+    if((cfg.prizeMode||'general')==='general'){ const w = out.find(x=>x.eligible); if(w) w.winner = true; }
+    else cfg.tasks.forEach(t => { const w = out.find(x=>x.task.id===t.id && x.eligible); if(w) w.winner = true; });
+    const premio = ((cfg.prizes||{}).general||{}).name || cfg.prize || '';
+    return { mes, threshold: th, premio, registros: recs.length, competidores: out.length,
+      ranking: out.filter(x=>x.score!=null).slice(0,3).map(x => ({ nombre: x.team ? teamLabel(x.task, x.team) : x.task.name, tarea: x.task.name,
+        integrantes: x.team ? memberIds(x.team).map(id=>people[id]).filter(Boolean).join(', ') : '', score: Math.round(x.score), eligible: !!x.eligible, complete: !!x.complete, winner: !!x.winner })),
+      lecturas: rs.size + 1 };
+  }
+  const CALC = { entregas:calcEntregas, ecommerce:calcEcommerce, vehiculos:calcVehiculos, combustible:calcCombustible, premio:calcPremio };
+  function cargarRemotos(forzar){
+    Object.keys(CALC).forEach(k => {
+      if(TG.cargando[k]) return;
+      TG.cargando[k] = true;
+      cacheado(k, CALC[k], forzar)
+        .then(r => { TG[k] = r; TG.error[k] = null; })
+        .catch(e => { console.warn('Tablero: no se pudo calcular', k, e); TG.error[k] = (e && (e.code||e.message)) || 'error'; })
+        .finally(() => { TG.cargando[k] = false; render(); });
+    });
+  }
+
+  // ── Cálculos en vivo (datos ya en memoria) ────────────────────
+  function aptitud(){
+    const T = window.__tmsDatos || {}, hoy = hoyL(), en30 = addD(hoy,30);
+    const APT = TG.apt && TG.apt.vehiculos || null;
+    const cams = Object.entries(T.camiones||{}).map(([id,c]) => Object.assign({id}, c)).filter(c => c.estado!=='Baja');
+    const noAptas = [], vencen = [];
+    const fuente = cams.length ? cams.map(c => { const p = APT && APT[placa(c.patente)] || null;
+        return { id:c.id, patente:c.patente, vtv: (p&&p.vtv) || c.vtvVence || null, vtvTr: !(p&&p.vtv) && !!(p&&p.vtvTramite), sn: (p&&p.sn)||null, snTr: !(p&&p.sn) && !!(p&&p.snTramite), seguro: c.seguroVence || null }; })
+      : Object.values(APT||{}).map(p => ({ patente:p.dom, vtv:p.vtv||null, vtvTr:!p.vtv&&!!p.vtvTramite, sn:p.sn||null, snTr:!p.sn&&!!p.snTramite, seguro:null }));
+    fuente.forEach(u => {
+      const bad = [];
+      if(!u.vtvTr && u.vtv && u.vtv < hoy) bad.push('VTV vencida '+fD(u.vtv));
+      if(!u.snTr && u.sn && u.sn < hoy) bad.push('SENASA vencido '+fD(u.sn));
+      if(u.seguro && u.seguro < hoy) bad.push('seguro vencido '+fD(u.seguro));
+      if(bad.length) noAptas.push({ id:u.id, patente:u.patente, motivo:bad.join(', ') });
+      [['VTV',u.vtv],['SENASA',u.sn],['Seguro',u.seguro]].forEach(([t,f]) => { if(f && f>=hoy && f<=en30) vencen.push({ patente:u.patente, tipo:t, fecha:f, dias:diasEntre(hoy,f) }); });
+    });
+    vencen.sort((a,b) => a.dias-b.dias);
+    return { noAptas, vencen, desdeTMS: !!cams.length, listo: !!APT };
+  }
+  function transporte(){
+    const T = window.__tmsDatos || {}; if(!T.salidas) return null;
+    const hoy = hoyL(), lun = lunesDe(hoy), lunAnt = addD(lun,-7), hoyAnt = addD(hoy,-7);
+    const act = T.salidas.filter(s => s.estado!=='Anulada');
+    const deHoy = act.filter(s => s.fecha===hoy);
+    const enRutaViejas = act.filter(s => s.estado==='En ruta' && s.fecha<hoy);
+    const cuenta = e => deHoy.filter(s => s.estado===e).length;
+    const kmDe = s => N(s.kmViaje) || ((N(s.kmRegreso)>N(s.kmSalida) && N(s.kmSalida)) ? N(s.kmRegreso)-N(s.kmSalida) : 0);
+    const semana = (a,b) => act.filter(s => s.fecha>=a && s.fecha<=b && (s.estado==='Finalizada' || s.estado==='En ruta'));
+    const sem = semana(lun,hoy), semAnt = semana(lunAnt,hoyAnt);
+    const fin = sem.filter(s=>s.estado==='Finalizada'), finAnt = semAnt.filter(s=>s.estado==='Finalizada');
+    const cams = Object.values(T.camiones||{});
+    const esAcop = c => c.tipo==='Acoplado' || c.tipo==='Semirremolque';
+    const motrices = cams.filter(c => c.estado!=='Baja' && !esAcop(c));
+    const disp = motrices.filter(c => (c.estado||'Disponible')==='Disponible');
+    const enUso = new Set(deHoy.map(s=>s.camionId).filter(Boolean));
+    // combAlertas() del TMS: volvió con más litros que el tanque (últimos 7 días)
+    const tanque = []; act.filter(s => s.fecha>=addD(hoy,-7) && s.litrosRegreso!=null).forEach(s => { const c = (T.camiones||{})[s.camionId]||{}; const t = N(c.tanqueL);
+      if(t && N(s.litrosRegreso) > t) tanque.push({ patente:c.patente||'', litros:N(s.litrosRegreso), tanque:t, nro:s.nro }); });
+    return {
+      ordenes: deHoy.length, prev: deHoy.filter(s=>s.canal==='Preventa').length, suc: deHoy.filter(s=>s.canal==='Sucursales').length,
+      otras: deHoy.filter(s=>s.canal!=='Preventa' && s.canal!=='Sucursales').length,
+      programadas: cuenta('Programada'), cargadas: cuenta('Cargada'), enRuta: cuenta('En ruta'), finalizadas: cuenta('Finalizada'),
+      deHoy, viajesSem: sem.length, viajesSemAnt: semAnt.length,
+      kmSem: fin.reduce((t,s)=>t+kmDe(s),0), kmSemAnt: finAnt.reduce((t,s)=>t+kmDe(s),0),
+      litrosSem: fin.reduce((t,s)=>t+N(s.litrosViaje),0), kmConLitros: fin.filter(s=>N(s.litrosViaje)>0).reduce((t,s)=>t+kmDe(s),0),
+      motrices: motrices.length, disponibles: disp.length, taller: motrices.filter(c=>c.estado==='En taller').length,
+      enRutaViejas, finSem: fin.length,
+      enUso: Array.from(enUso).filter(id => !esAcop((T.camiones||{})[id]||{})).length, tanque,
+      recepHoy: (T.recepciones||[]).filter(r => r.fecha===hoy)
+    };
+  }
+  function recepcion(){
+    const cam = arr(G('camiones')), hoy = hoyL();
+    const deHoy = cam.filter(r => r.fecha===hoy);
+    const porDep = {}; deHoy.forEach(r => { const d = r.deposito||'—'; porDep[d] = porDep[d] || {n:0,p:0}; porDep[d].n++; porDep[d].p += N(r.pallets); });
+    // referencia: promedio diario de pallets de los últimos 14 días con recepciones (sin hoy)
+    const desde = addD(hoy,-14), dias = {};
+    cam.forEach(r => { if(r.fecha>=desde && r.fecha<hoy){ dias[r.fecha] = (dias[r.fecha]||0) + N(r.pallets); } });
+    const nd = Object.keys(dias).length, prom = nd ? Object.values(dias).reduce((a,b)=>a+b,0)/nd : null;
+    const camDias = {}; cam.forEach(r => { if(r.fecha>=desde && r.fecha<hoy) camDias[r.fecha]=(camDias[r.fecha]||0)+1; });
+    const promCam = nd ? Object.values(camDias).reduce((a,b)=>a+b,0)/nd : null;
+    const rp = arr(G('recepcionesProg'));
+    const progHoy = rp.filter(r => r.fecha===hoy), manana = addD(hoy,1);
+    const atrasadas = rp.filter(r => r.fecha < hoy && r.fecha >= addD(hoy,-7) && r.estado!=='Cumplido');
+    const rechazos = deHoy.reduce((t,r) => t + arr(r.rechazos).length, 0);
+    // semana (lunes→hoy) y mes (1°→hoy), contra el mismo tramo del período anterior
+    const enRango = (a,b) => cam.filter(r => r.fecha>=a && r.fecha<=b);
+    const lun = lunesDe(hoy), sem = enRango(lun, hoy), semAnt = enRango(addD(lun,-7), addD(hoy,-7));
+    const ini = hoy.slice(0,8)+'01', dAnt = new Date(hoy+'T00:00:00'); dAnt.setDate(1); dAnt.setMonth(dAnt.getMonth()-1);
+    const iniAnt = isoL(dAnt), finAntD = new Date(dAnt); finAntD.setDate(Math.min(Number(hoy.slice(8,10)), new Date(dAnt.getFullYear(), dAnt.getMonth()+1, 0).getDate()));
+    const mes = enRango(ini, hoy), mesAnt = enRango(iniAnt, isoL(finAntD));
+    const pal = a => a.reduce((t,r)=>t+N(r.pallets),0);
+    // proveedores de los últimos 30 días
+    const d30 = addD(hoy,-29), ult30 = enRango(d30, hoy), provs = {};
+    ult30.forEach(r => { const p = String(r.transportista||'').trim() || '(sin proveedor)'; const k = p.toUpperCase();
+      const x = provs[k] = provs[k] || { nombre:p, camiones:0, pallets:0, ultima:'', deps:{} };
+      x.camiones++; x.pallets += N(r.pallets); if(r.fecha > x.ultima) x.ultima = r.fecha; const dd = r.deposito||'—'; x.deps[dd] = (x.deps[dd]||0)+1; });
+    const ranking = Object.values(provs).sort((a,b) => b.camiones-a.camiones || b.pallets-a.pallets);
+    // proveedores frecuentes (4+ camiones en 30 días) que no vinieron en los últimos 7 días
+    const ausentes = ranking.filter(p => p.camiones>=4 && p.ultima < addD(hoy,-6));
+    // hora pico de llegada (30 días)
+    const horas = {}; ult30.forEach(r => { const h = parseInt(String(r.hora||'').slice(0,2),10); if(isFinite(h)) horas[h]=(horas[h]||0)+1; });
+    const hp = Object.entries(horas).sort((a,b)=>b[1]-a[1])[0];
+    const hoyLista = deHoy.slice().sort((a,b)=>String(a.hora||'').localeCompare(String(b.hora||'')))
+      .map(r => ({ prov: r.transportista||'(sin proveedor)', hora: r.hora||'', dep: r.deposito||'', pallets: N(r.pallets) }));
+    const extra = { camSem: sem.length, palSem: pal(sem), camSemAnt: semAnt.length, palSemAnt: pal(semAnt),
+      camMes: mes.length, palMes: pal(mes), camMesAnt: mesAnt.length, palMesAnt: pal(mesAnt),
+      devMes: mes.reduce((t,r)=>t+N(r.palletsdev),0), valeMes: mes.reduce((t,r)=>t+N(r.palletsvale),0),
+      cam30: ult30.length, pal30: pal(ult30), nProv30: ranking.length, ranking: ranking.slice(0,8), ausentes: ausentes.slice(0,5),
+      horaPico: hp ? { h: Number(hp[0]), n: hp[1] } : null, hoyLista };
+    return { ...extra, camiones: deHoy.length, pallets: deHoy.reduce((t,r)=>t+N(r.pallets),0), porDep, prom, promCam, rechazos,
+      progHoy: progHoy.length, progCumplidas: progHoy.filter(r=>r.estado==='Cumplido').length, progPallets: progHoy.reduce((t,r)=>t+N(r.pallets),0),
+      progManana: rp.filter(r => r.fecha===manana).length, atrasadas };
+  }
+  function sucursalesPreventa(){
+    const hoy = hoyL(), lun = lunesDe(hoy), dow = (new Date().getDay()+6)%7; // 0 = lunes … 6 = domingo
+    const pl = (G('plData')||{})[lun] || {};
+    let ok=0, parc=0, pend=0, tot=0, pendAnt=0, hoyTot=0, hoyOk=0;
+    for(let d=0; d<6; d++) arr(pl[d]).forEach(e => { tot++; const est = e.estado||'pendiente';
+      if(est==='entregado') ok++; else if(est==='parcial') parc++; else { pend++; if(d<dow) pendAnt++; }
+      if(d===dow){ hoyTot++; if(est==='entregado') hoyOk++; } });
+    const rec = dow<6 ? arr(((G('recorridosPorSemana')||{})[lun]||{})[dow]) : [];
+    const suc = dow<6 ? arr(((G('sucursalesPorSemana')||{})[lun]||{})[dow]) : [];
+    const zonas = new Set(rec.map(r=>r.zona).filter(Boolean));
+    return { ok, parc, pend, tot, pendAnt, hoyTot, hoyOk, pct: tot ? ok/tot*100 : null,
+      recHoy: rec.length, kmRuta: rec.reduce((t,r)=>t+N(r.kmRuta),0), zonas: zonas.size,
+      sucHoy: suc.length, sucursales: new Set(suc.map(s=>s.sucursal).filter(Boolean)).size, domingo: dow===6 };
+  }
+  function bajas(){
+    const hoy = hoyL(), mes = hoy.slice(0,7);
+    const d = new Date(hoy+'T00:00:00'); d.setDate(1); d.setMonth(d.getMonth()-1);
+    const mesAnt = isoL(d).slice(0,7), hastaAnt = mesAnt+'-'+hoy.slice(8,10);
+    const sum = (lista, desde, hasta) => { const r = lista.filter(x => x.fecha && x.fecha>=desde && x.fecha<=hasta);
+      return { n:r.length, u:r.reduce((t,x)=>t+N(x.cantidad),0), imp:r.reduce((t,x)=>t+N(x.importe),0), r }; };
+    const bd = arr(G('bajasDeposito')), bp = arr(G('bajasPreventa')), rp = arr(G('rechazoPVData'));
+    const out = {
+      dep: sum(bd, mes+'-01', hoy), depAnt: sum(bd, mesAnt+'-01', hastaAnt),
+      pv: sum(bp, mes+'-01', hoy), pvAnt: sum(bp, mesAnt+'-01', hastaAnt),
+      rech: sum(rp, mes+'-01', hoy), rechAnt: sum(rp, mesAnt+'-01', hastaAnt)
+    };
+    const rub = {}; const gr = typeof getRubro==='function' ? getRubro : null;
+    if(gr) out.dep.r.concat(out.pv.r).forEach(x => { let k; try { k = gr(x.codigo) || 'Sin rubro'; } catch(e) { k = 'Sin rubro'; } rub[k] = (rub[k]||0) + N(x.importe); });
+    out.rubroTop = Object.entries(rub).sort((a,b)=>b[1]-a[1])[0] || null;
+    const mot = {}; out.rech.r.forEach(x => { const k = x.motivo || 'Sin motivo'; mot[k] = (mot[k]||0)+1; });
+    out.motivoTop = Object.entries(mot).sort((a,b)=>b[1]-a[1])[0] || null;
+    const ult = l => l.map(x => x.fecha||'').sort().slice(-1)[0] || null;
+    out.ultDep = ult(bd); out.ultPv = ult(bp); out.ultRech = ult(rp);
+    return out;
+  }
+
+  // ── Bloques ────────────────────────────────────────────────────
+  const semOcup = p => p>90 ? 'rojo' : p>=80 ? 'ambar' : 'verde';
+  function depEdad(){ const f = TG.dep && TG.dep.fecha; const m = f && String(f).match(/(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})/);
+    if(!m) return null; return (Date.now() - new Date(+m[3], +m[2]-1, +m[1], +m[4], +m[5]).getTime())/60000; }
+  const DEP_PLAYON = { '3':'playon3', '15':'playon15', '1':'playon1' };
+
+  function bqTransporte(t, A, al){
+    if(!t) return bloque({ id:'transporte', titulo:'Transporte (TMS)', abrir:[{url:URLS.tms, txt:'Abrir TMS'}], cuerpo: skel(4), pie:'Conectando con el TMS…' });
+    const noAptHoy = A.noAptas.filter(u => t.deHoy.some(s => s.camionId===u.id || s.acopladoId===u.id));
+    if(noAptHoy.length) al.push({ n:'rojo', txt:'<b>'+noAptHoy.length+' '+(noAptHoy.length===1?'unidad no apta tiene':'unidades no aptas tienen')+' orden de carga hoy</b>: '+esc(noAptHoy.map(u=>u.patente+' ('+u.motivo+')').join(' · ')), url:URLS.tms });
+    if(t.enRutaViejas.length) al.push({ n:'ambar', txt:'<b>'+t.enRutaViejas.length+' '+(t.enRutaViejas.length===1?'viaje sigue':'viajes siguen')+' «En ruta» desde días anteriores</b> (órdenes '+esc(t.enRutaViejas.slice(0,4).map(s=>'N° '+(s.nro||'—')+' del '+fD(s.fecha)).join(', '))+(t.enRutaViejas.length>4?'…':'')+'): hay que cerrar el regreso en el TMS; sin cierre no hay km, consumo ni control del vehículo.', url:URLS.tms });
+    const usoPct = t.disponibles ? t.enUso/t.disponibles*100 : null;
+    const porSalir = t.programadas + t.cargadas;
+    const c = [];
+    const nums = [
+      num(fN(t.ordenes), 'Órdenes de carga hoy', t.prev+' preventa · '+t.suc+' sucursales'+(t.otras?' · '+t.otras+' otras':''), 'Órdenes de carga del TMS con fecha de hoy, sin las anuladas. Se separan por canal (Preventa / Sucursales). Sale de la colección salidas del TMS, que el Parte diario ya lee para su conexión con el TMS.'),
+      num(fN(t.enRuta), 'En viaje (salieron hoy)', t.finalizadas+' ya volvieron'+(t.enRutaViejas.length?' · '+t.enRutaViejas.length+' de días anteriores sin cerrar':''), 'Órdenes de hoy en estado «En ruta» (salieron y todavía no se cerró el regreso). «Ya volvieron» = órdenes de hoy en estado Finalizada. «De días anteriores sin cerrar» = órdenes de otros días que siguen En ruta en el TMS: o el viaje es de varios días o falta cerrar el regreso.', t.enRutaViejas.length?'ambar':''),
+      num(fN(porSalir), 'Por salir', t.programadas+' emitidas · '+t.cargadas+' cargadas', 'Órdenes de hoy que todavía no salieron: estado Programada (orden emitida) o Cargada (camión cargado esperando salir).', porSalir && new Date().getHours()>=12 ? (c.push('ambar'),'ambar') : ''),
+      num(usoPct==null?'—':fPct(usoPct), 'Uso de la flota hoy', t.enUso+' de '+t.disponibles+' camiones disponibles'+(t.taller?' · '+t.taller+' en taller':''), 'Camiones (sin acoplados) con al menos una orden hoy, sobre los camiones del TMS en estado Disponible. Los que están «En taller» no cuentan como disponibles. Sirve para ver cuánta flota queda ociosa.'),
+      num(fN(t.kmSem), 'Km de la semana', t.finSem+' viajes cerrados · sem. pasada '+fN(t.kmSemAnt)+' km', 'Suma de km de los viajes Finalizados desde el lunes hasta hoy (km del cierre del viaje: LoJack, odómetro o previstos, el mismo que guarda el TMS). Al lado, los km de la semana pasada a la misma altura (lunes a '+['lunes','martes','miércoles','jueves','viernes','sábado','domingo'][(new Date().getDay()+6)%7]+').'),
+      num(fN(t.viajesSem), 'Viajes de la semana', varTxt(t.viajesSem, t.viajesSemAnt, 'vs semana pasada') || 'Lunes a hoy', 'Órdenes en estado En ruta o Finalizada desde el lunes. Comparación con la semana pasada a la misma altura.')
+    ];
+    const rec = t.recepHoy.length ? ' · Recepciones de mercadería cargadas en el TMS hoy: <b>'+t.recepHoy.length+'</b> ('+fN(t.recepHoy.reduce((s,r)=>s+N(r.pallets),0))+' pallets).' : '';
+    return bloque({ id:'transporte', titulo:'Transporte (TMS)', clases:c, abrir:[{url:URLS.tms, txt:'Abrir TMS'}],
+      cuerpo:'<div class="tg-nums">'+nums.join('')+'</div>',
+      ctx: (t.litrosSem && t.kmConLitros ? 'Rendimiento de los viajes cerrados de la semana: <b>'+fN(t.kmConLitros/t.litrosSem,2)+' km/L</b> (meta del TMS: '+fN(META_KML,1)+').' : 'Todavía no hay viajes cerrados con litros esta semana.')+rec });
+  }
+  function bqFlota(A, t, al){
+    const cb = TG.combustible && TG.combustible.datos, c = [];
+    if(A.noAptas.length) al.push({ n:'rojo', txt:'<b>'+A.noAptas.length+' '+(A.noAptas.length===1?'unidad no apta':'unidades no aptas')+' para salir</b> (papeles vencidos): '+esc(A.noAptas.map(u=>u.patente+' — '+u.motivo).join(' · ')), tab:'flota-venc' });
+    const v7 = A.vencen.filter(v => v.dias<=7);
+    if(v7.length) al.push({ n:'ambar', txt:'<b>'+v7.length+' '+(v7.length===1?'vencimiento':'vencimientos')+' en los próximos 7 días</b>: '+esc(v7.map(v=>v.patente+' '+v.tipo+' '+(v.dias===0?'hoy':v.dias===1?'mañana':'en '+v.dias+' días')).join(' · ')), tab:'flota-venc' });
+    if(cb && cb.alertas){ const ex = cb.alertas.filter(a=>a.tipo==='exceso');
+      if(ex.length) al.push({ n:'ambar', txt:'<b>Consumo excesivo de gasoil en '+ex.length+' '+(ex.length===1?'camión':'camiones')+'</b> (30 días): '+esc(ex.map(a=>a.patente+' '+fN(a.kml,2)+' km/L vs '+fN(a.ref,2)+' (+'+a.pct+'% gasoil)').join(' · ')), url:URLS.tms }); }
+    if(t && t.tanque.length) al.push({ n:'ambar', txt:'<b>'+t.tanque.length+' '+(t.tanque.length===1?'viaje volvió':'viajes volvieron')+' con más litros que el tanque</b> (dato mal cargado en la recepción del vehículo): '+esc(t.tanque.map(x=>x.patente+' '+fN(x.litros)+' L / tanque '+fN(x.tanque)+' L').join(' · ')), url:URLS.vehiculos });
+    const nums = [
+      num(A.listo ? fN(A.noAptas.length) : '…', 'Unidades no aptas', A.noAptas.length ? esc(A.noAptas.slice(0,3).map(u=>u.patente).join(', ')+(A.noAptas.length>3?'…':'')) : 'Todas con papeles al día',
+        'Unidades del TMS (sin las dadas de baja) con VTV o SENASA vencidos según Vencimientos Flota del Parte diario, o con el seguro vencido según el TMS. Es el mismo criterio que usa el TMS para marcar «⚠» al armar la orden. Las que están en trámite no cuentan como vencidas.', A.noAptas.length?(c.push('rojo'),'rojo'):(A.listo?'verde':'')),
+      num(fN(A.vencen.length), 'Vencen en 30 días', v7.length ? v7.length+' en 7 días o menos' : (A.vencen[0] ? 'El próximo: '+esc(A.vencen[0].patente)+' '+A.vencen[0].tipo+' '+fD(A.vencen[0].fecha) : 'Nada por vencer'),
+        'VTV, SENASA y seguro que vencen entre hoy y dentro de 30 días, de las unidades activas del TMS. VTV y SENASA salen de la pestaña Vencimientos Flota (resumen tms_aptitud); el seguro, del TMS.', v7.length?(c.push('ambar'),'ambar'):''),
+      cb ? num(cb.kmlFlota==null?'—':fN(cb.kmlFlota,2)+' <small>km/L</small>', 'Rendimiento flota 30 días', 'Meta '+fN(META_KML,1)+' km/L · '+cb.medidos+' camiones medidos',
+        'Km entre cargas de gasoil ÷ litros cargados, de todas las cargas de los últimos 30 días (mismo cálculo que «Consumo de la flota» del Tablero de KPI del TMS: se descartan tramos de más de 6000 km o fuera de 0,8–20 km/L). Mayor es mejor.', cb.kmlFlota==null?'':cb.kmlFlota>=META_KML?'verde':cb.kmlFlota>=META_KML*0.9?(c.push('ambar'),'ambar'):(c.push('rojo'),'rojo'))
+        : num(TG.error.combustible?'—':'…', 'Rendimiento flota 30 días', TG.error.combustible?'No se pudo leer el gasoil':'Calculando…', 'Km entre cargas ÷ litros de los últimos 30 días (colección gasoil del TMS).'),
+      cb ? num(fN(cb.alertas.filter(a=>a.tipo==='exceso').length), 'Consumo excesivo', cb.alertas.length ? esc(cb.alertas.slice(0,2).map(a=>a.patente+(a.tipo==='exceso'?' +'+a.pct+'%':' (dato raro)')).join(', ')) : 'Ningún camión fuera de rango',
+        'Camiones cuyo consumo medido en los últimos 30 días (al menos 300 km y 2 cargas) rinde menos del 80% de su consumo de referencia (Flota › Consumo km/L del TMS) = gastan más de 25% de gasoil de más. Mismo criterio que la alerta de combustible del TMS. «Dato raro» = rinde más de 1,5 veces la referencia (faltan cargas o el odómetro está mal).', cb.alertas.some(a=>a.tipo==='exceso')?'ambar':'verde')
+        : num('…', 'Consumo excesivo', 'Calculando…', 'Camiones con consumo medido por debajo del 80% de su referencia.'),
+      cb ? num(fN(cb.litrosMes), 'Gasoil del mes (L)', fM(cb.importeMes)+' · '+cb.cargasMes+' cargas', 'Litros y pesos de todas las cargas de combustible del TMS (Gasoil) desde el 1° del mes. El importe es el cargado o litros × precio.') : ''
+    ];
+    return bloque({ id:'flota', titulo:'Flota y combustible', clases:c, abrir:[{tab:'flota-venc', txt:'Vencimientos'},{url:URLS.tms, txt:'Gasoil en TMS'}],
+      cuerpo:'<div class="tg-nums">'+nums.join('')+'</div>'+
+        (A.vencen.length ? '<div class="tg-chips">'+A.vencen.slice(0,8).map(v => '<span class="tg-chip '+(v.dias<=7?'ambar':'')+'">'+esc(v.patente)+' · '+v.tipo+' '+fD(v.fecha)+'</span>').join('')+(A.vencen.length>8?'<span class="tg-chip">+'+(A.vencen.length-8)+' más</span>':'')+'</div>' : ''),
+      pie: cb ? 'Combustible: '+haceTxt(TG.combustible.at)+(TG.combustible.cache?' (guardado)':'') : '' });
+  }
+  function bqDepositos(al){
+    const D = TG.dep;
+    if(!D || !D.depositos) return bloque({ id:'depositos', titulo:'Depósitos y stock', ancho:true, abrir:[{url:URLS.dep3d, txt:'Depósitos 3D'}], cuerpo: skel(3) });
+    const edad = depEdad(), viejo = edad!=null && edad>60, c = [];
+    if(viejo) { al.push({ n:'gris', txt:'<b>El dato de depósitos tiene '+haceTxt(new Date(Date.now()-edad*60000).toISOString()).replace('hace ','')+'</b> (se actualiza cada 10 min desde la PC del depósito): puede estar apagada la tarea.', url:URLS.dep3d }); c.push('ambar'); }
+    let vacTot=0, posTot=0;
+    const tarjetas = ['15','3','1'].map(k => { const d = D.depositos[k]; if(!d) return '';
+      const pct = d.posiciones ? d.ocupadas/d.posiciones*100 : 0, s = semOcup(pct); c.push(s); vacTot += N(d.vacias); posTot += N(d.posiciones);
+      if(s==='rojo') al.push({ n:'rojo', txt:'<b>Depósito '+k+' al '+fPct(pct)+' de ocupación</b>: quedan '+fN(d.vacias)+' posiciones vacías.', url:URLS.dep3d });
+      if(N(d.dobles)>0) al.push({ n:'ambar', txt:'<b>'+fN(d.dobles)+' '+(d.dobles==1?'posición':'posiciones')+' con 2 o más paletas en el Depósito '+k+'</b> (cada posición admite 1): reubicar.', url:URLS.dep3d });
+      if(N(d.vencidas)>0) al.push({ n:'rojo', txt:'<b>'+fN(d.vencidas)+' paletas vencidas en el Depósito '+k+'</b>.', url:URLS.dep3d });
+      if(N(d.vence1m)>0) al.push({ n:'ambar', txt:'<b>'+fN(d.vence1m)+' paletas vencen en menos de 1 mes en el Depósito '+k+'</b>.', url:URLS.dep3d });
+      const info = 'Depósito '+k+': '+fN(d.posiciones)+' posiciones de estantería, '+fN(d.ocupadas)+' ocupadas y '+fN(d.vacias)+' vacías ('+fPct(pct)+' de ocupación; semáforo: menos de 80% verde, 80–90% ámbar, más de 90% rojo). '+fN(d.paletas)+' paletas y '+fN(d.unidades)+' unidades. Pasillo más lleno: '+(d.pasilloMasLleno||'—')+' ('+fN(d.pasilloMasLlenoPct,1)+'%); más vacío: '+(d.pasilloMasVacio||'—')+' ('+fN(d.pasilloMasVacioPct,1)+'%). Vencimientos por paleta: '+fN(d.vencidas)+' vencidas, '+fN(d.vence1m)+' en menos de 1 mes, '+fN(d.vence3m)+' en 1 a 3 meses, '+fN(d.vence6m)+' en 3 a 6 meses. Sale del stock del WMS que publica Depósitos 3D cada 10 minutos.';
+      return '<div class="tg-dep" tabindex="0" role="button" onclick="mostrarInfoTarjeta(this,event)" data-info-title="Depósito '+k+'" data-info-body="'+esc(info)+'">'+
+        '<div class="tg-dep-h"><span class="tg-dep-n">Depósito '+k+'</span><span class="tg-dep-pct '+s+'">'+fPct(pct)+'</span></div>'+
+        '<div class="tg-bar" role="img" aria-label="'+fPct(pct)+' ocupado"><i class="'+s+'" style="width:'+Math.min(100,pct).toFixed(1)+'%"></i></div>'+
+        '<div class="tg-dep-f"><span>Ocupadas <b>'+fN(d.ocupadas)+'</b></span><span>Vacías <b>'+fN(d.vacias)+'</b></span>'+
+        '<span class="'+(N(d.dobles)?'ambar':'')+'">2+ paletas <b>'+fN(d.dobles)+'</b></span><span class="'+(N(d.vencidas)?'rojo':N(d.vence1m)?'ambar':'')+'">Vencen &lt;1 mes <b>'+fN(N(d.vencidas)+N(d.vence1m))+'</b></span>'+
+        '<span>Vencen 1–3 m <b>'+fN(d.vence3m)+'</b></span><span>Pasillo + lleno <b>'+esc(d.pasilloMasLleno||'—')+'</b></span></div></div>';
+    }).join('');
+    const P = D.playones || {};
+    const playones = Object.entries(DEP_PLAYON).map(([dep,key]) => { const p = P[key]; if(!p) return '';
+      const vac = N((D.depositos[dep]||{}).vacias), pal = N(p.paletas);
+      const s = pal > 1000 || (pal > 0 && pal > vac) ? 'rojo' : pal > 200 ? 'ambar' : '';
+      if(s) { c.push(s); al.push({ n:s, txt:'<b>'+fN(pal)+' paletas en '+esc(p.nombre||key)+'</b>, fuera de estantería'+(pal>vac?' — no entran en las '+fN(vac)+' posiciones vacías del Depósito '+dep:'')+'.', url:URLS.dep3d }); }
+      return num(fN(pal)+' <small>pal.</small>', p.nombre || key, fN(p.unidades)+' unidades'+(pal&&vac?' · vacías en Dep. '+dep+': '+fN(vac):''),
+        'Paletas en zonas de playón / rebalse (fuera de las posiciones de estantería) según el WMS. Semáforo: rojo si superan 1.000 paletas o no entran en las posiciones vacías del depósito; ámbar desde 200.', s);
+    }).join('');
+    return bloque({ id:'depositos', titulo:'Depósitos y stock', ancho:true, clases:c, abrir:[{url:URLS.dep3d, txt:'Depósitos 3D'}],
+      cuerpo:'<div class="tg-deps">'+tarjetas+'</div><div class="tg-playones">'+playones+'</div>',
+      ctx:'Total: <b>'+fN(vacTot)+'</b> posiciones vacías de '+fN(posTot)+' ('+fPct(posTot?(posTot-vacTot)/posTot*100:0)+' ocupado).',
+      pie:'Stock del WMS al '+esc(D.fecha||'—')+(edad!=null?' · actualizado '+haceTxt(new Date(Date.now()-edad*60000).toISOString()):'') });
+  }
+  function bqRecepcion(r, al){
+    const c = [];
+    if(r.atrasadas.length) { c.push('ambar'); al.push({ n:'ambar', txt:'<b>'+r.atrasadas.length+' '+(r.atrasadas.length===1?'recepción programada':'recepciones programadas')+' de los últimos 7 días sin marcar como cumplida</b>: '+esc(r.atrasadas.slice(0,4).map(x=>(x.proveedor||'—')+' '+fD(x.fecha)).join(' · ')), tab:'recepciones-prog' }); }
+    const dep = Object.entries(r.porDep).sort((a,b)=>b[1].p-a[1].p).map(([d,x]) => esc(d.replace('DEPOSITO','Dep.').replace('CENTRO LOGISTICO','Centro Log.'))+': <b>'+x.n+'</b> ('+fN(x.p)+' pal.)').join(' · ');
+    const pendProg = r.progHoy - r.progCumplidas;
+    const nums = [
+      num(fN(r.camiones), 'Camiones recibidos hoy', r.promCam!=null ? 'Promedio diario (14 días): '+fN(r.promCam,1) : '', 'Recepciones de camión del Parte diario con fecha de hoy (incluye las que llegan del TMS). Se compara con el promedio de camiones por día de los últimos 14 días con recepciones.'),
+      num(fN(r.pallets), 'Pallets recibidos hoy', r.prom!=null ? 'Promedio diario (14 días): '+fN(r.prom) : '', 'Suma de «pallets que deja» de las recepciones de hoy. Se compara con el promedio diario de los últimos 14 días con recepciones (sin hoy).'),
+      num(fN(r.progHoy), 'Programadas para hoy', r.progHoy ? r.progCumplidas+' cumplidas · '+pendProg+' por llegar' : 'Sin recepciones programadas', 'Recepciones programadas (calendario de proveedores) con fecha de hoy y cuántas ya están marcadas como Cumplido.', pendProg && new Date().getHours()>=16 ? (c.push('ambar'),'ambar') : ''),
+      num(fN(r.progManana), 'Programadas mañana', '', 'Recepciones programadas con fecha de mañana, para planificar muelles y personal.'),
+      num(fN(r.camSem), 'Camiones esta semana', fN(r.palSem)+' pallets'+(r.camSemAnt?' · '+varTxt(r.camSem,r.camSemAnt,'vs sem. pasada'):''),
+        'Camiones recibidos desde el lunes hasta hoy, comparados con la semana pasada hasta el mismo día (lunes a '+fD(addD(hoyL(),-7))+': '+fN(r.camSemAnt)+' camiones, '+fN(r.palSemAnt)+' pallets).'),
+      num(fN(r.camMes), 'Camiones en el mes', fN(r.palMes)+' pallets'+(r.camMesAnt?' · '+varTxt(r.camMes,r.camMesAnt,'vs mes ant.'):''),
+        'Camiones recibidos desde el 1° del mes hasta hoy, comparados con el mes anterior hasta el mismo día ('+fN(r.camMesAnt)+' camiones, '+fN(r.palMesAnt)+' pallets).'),
+      num(r.cam30 ? fN(r.pal30/r.cam30,1) : '—', 'Pallets por camión', 'Últimos 30 días'+(r.horaPico?' · hora pico '+pad(r.horaPico.h)+' h':''),
+        'Promedio de pallets que deja cada camión en los últimos 30 días ('+fN(r.pal30)+' pallets en '+fN(r.cam30)+' camiones).'+(r.horaPico?' Hora pico de llegada: entre las '+pad(r.horaPico.h)+' y las '+pad(r.horaPico.h+1)+' h ('+r.horaPico.n+' camiones en 30 días): conviene tener muelle y personal libres a esa hora.':'')),
+      num(fN(r.devMes+r.valeMes), 'Pallets devueltos + vales (mes)', fN(r.devMes)+' devueltos · '+fN(r.valeMes)+' vales',
+        'Suma del mes de «pallets que se devuelven» y «vales de pallets» de las recepciones de camión: es el saldo de pallets que circula con los proveedores.')
+    ];
+    const maxCam = r.ranking.length ? r.ranking[0].camiones : 1;
+    const rank = r.ranking.length ? '<ol class="tg-rank">'+r.ranking.map((p,i) => {
+        const deps = Object.entries(p.deps).sort((a,b)=>b[1]-a[1]).map(([d])=>d.replace('DEPOSITO','Dep.').replace('CENTRO LOGISTICO','Centro Log.')).join(', ');
+        return '<li><span class="tg-rank-n">'+(i+1)+'</span><span class="tg-rank-p"><b>'+esc(p.nombre)+'</b><small>'+fN(p.pallets)+' pallets · '+esc(deps)+' · última '+fD(p.ultima)+'</small>'+
+          '<i class="tg-rank-bar"><i style="width:'+(p.camiones/maxCam*100).toFixed(0)+'%"></i></i></span><span class="tg-rank-v">'+p.camiones+' <small>cam.</small><small>'+fPct(p.camiones/r.cam30*100)+'</small></span></li>'; }).join('')+'</ol>'
+      : '<div class="tg-vacio">Sin recepciones en los últimos 30 días.</div>';
+    const hoyL2 = r.hoyLista.length ? '<ul class="tg-lista">'+r.hoyLista.map(x => '<li><span>'+(x.hora?'<b>'+esc(x.hora.slice(0,5))+'</b> · ':'')+esc(x.prov)+(x.dep?' <small>('+esc(x.dep.replace('DEPOSITO','Dep.').replace('CENTRO LOGISTICO','Centro Log.'))+')</small>':'')+'</span><span>'+fN(x.pallets)+' pal.</span></li>').join('')+'</ul>'
+      : '<div class="tg-vacio">Todavía no llegó ningún camión hoy.</div>';
+    const aus = r.ausentes.length ? '<div class="tg-nota">Proveedores frecuentes que no vienen hace más de una semana: '+r.ausentes.map(p => '<b>'+esc(p.nombre)+'</b> (última '+fD(p.ultima)+')').join(', ')+'.</div>' : '';
+    return bloque({ id:'recepcion', titulo:'Recepción de mercadería', ancho:true, clases:c, abrir:[{tab:'camiones', txt:'Recepción'},{tab:'recepciones-prog', txt:'Programadas'}],
+      cuerpo:'<div class="tg-nums">'+nums.join('')+'</div>'+
+        '<div class="tg-recep-cols"><div><div class="tg-sub">Proveedores que más llegan · últimos 30 días <small>('+fN(r.nProv30)+' proveedores, '+fN(r.cam30)+' camiones)</small></div>'+rank+'</div>'+
+        '<div><div class="tg-sub">Llegaron hoy ('+fN(r.camiones)+')</div>'+hoyL2+aus+'</div></div>',
+      ctx: dep ? 'Por depósito hoy: '+dep+(r.rechazos?' · Con rechazos: <b>'+r.rechazos+'</b>':'') : 'Todavía no se recibieron camiones hoy.' });
+  }
+  function bqEntregas(al){
+    const R = TG.entregas, x = R && R.datos;
+    const ab = [{url:URLS.entregas, txt:'Gestión de entregas'}];
+    if(!x) return bloque({ id:'entregas', titulo:'Entregas y cobranza', abrir:ab, cuerpo: TG.error.entregas ? '<div class="tg-vacio">No se pudo leer Gestión de entregas ('+esc(TG.error.entregas)+').</div>' : skel(6) });
+    if(!x.dia) return bloque({ id:'entregas', titulo:'Entregas y cobranza', abrir:ab, cuerpo:'<div class="tg-vacio">Todavía no hay rutas cargadas en Gestión de entregas.</div>' });
+    const hoy = hoyL(), esHoy = x.dia===hoy, c = [];
+    const gest = x.entregadas + x.rechazadas, ef = gest ? x.entregadas/gest*100 : null, av = x.facturas ? gest/x.facturas*100 : null;
+    const sEf = ef==null || gest<5 ? '' : ef>=OBJ_EFECTIVIDAD ? 'verde' : ef>=90 ? 'ambar' : 'rojo'; c.push(sEf);
+    if(esHoy && x.rechazadas) al.push({ n: sEf==='rojo'?'rojo':'ambar', txt:'<b>'+x.rechazadas+' '+(x.rechazadas===1?'factura rechazada':'facturas rechazadas')+' hoy</b> ('+fM(x.importeRech)+')'+(x.motivos.length?': '+esc(x.motivos.map(m=>m[0]+' '+m[1]).join(', ')):'')+'.', url:URLS.entregas });
+    if(esHoy && x.sinChofer) al.push({ n:'ambar', txt:'<b>'+x.sinChofer+' '+(x.sinChofer===1?'ruta':'rutas')+' de hoy sin chofer asignado</b> en Gestión de entregas (no le aparecen a nadie en «Soy chofer»).', url:URLS.entregas });
+    const cobrado = x.efectivo + x.cheques + x.transf;
+    const nums = [
+      num(fN(x.rutas), 'Rutas '+(esHoy?'de hoy':'del '+fD(x.dia)), x.cerradas+' cerradas · '+(x.rutas-x.cerradas)+' abiertas', 'Rutas de reparto de Gestión de entregas con fecha de servicio '+(esHoy?'de hoy':'del '+fD(x.dia)+' (último día con rutas)')+'. Cerrada = el chofer cerró la ruta; abierta = todavía en reparto o sin cerrar.'),
+      num(fN(x.entregadas)+' <small>/ '+fN(x.facturas)+'</small>', 'Facturas entregadas', (x.parciales?x.parciales+' parciales · ':'')+x.pendientes+' pendientes', 'Facturas del día con estado Entregada (total o parcial) sobre el total de facturas del día. No cuenta las notas de crédito (importe negativo). Pendiente = todavía sin gestionar.'),
+      num(fN(x.rechazadas), 'Rechazadas', x.motivos[0] ? esc(x.motivos[0][0]) : 'Sin rechazos', 'Facturas que el chofer marcó como rechazadas, con el motivo más repetido.', x.rechazadas ? (sEf==='rojo'?'rojo':'ambar') : 'verde'),
+      num(fPct(ef), 'Efectividad de entrega', 'Objetivo '+OBJ_EFECTIVIDAD+'% · avance '+fPct(av), 'Entregadas ÷ (entregadas + rechazadas): de las facturas ya gestionadas, cuántas se entregaron. Semáforo: '+OBJ_EFECTIVIDAD+'% o más verde, 90–'+OBJ_EFECTIVIDAD+'% ámbar, menos de 90% rojo (se evalúa desde 5 facturas gestionadas). Avance = gestionadas ÷ total de facturas del día.', sEf),
+      num(fM(x.importe), 'Importe del día', fM(x.importePend)+' pendiente', 'Suma del importe de las facturas del día (sin notas de crédito) y cuánto de eso sigue pendiente de entrega.'),
+      num(fM(cobrado), 'Cobrado al entregar', 'Cta. cte.: '+fM(x.cta), 'Lo cobrado en el momento de la entrega: efectivo ('+fM(x.efectivo)+') + cheques ('+fM(x.cheques)+') + transferencias ('+fM(x.transf)+'). «Cta. cte.» = lo que quedó a cuenta corriente. Mismo cálculo que la cobranza del día del panel de Gestión de entregas.')
+    ];
+    return bloque({ id:'entregas', titulo:'Entregas y cobranza'+(esHoy?'':' — último día: '+fD(x.dia)), clases:c, abrir:ab,
+      cuerpo:'<div class="tg-nums">'+nums.join('')+'</div>',
+      ctx: 'Encuesta a clientes: <b>'+(x.encuesta==null?'sin respuestas':fN(x.encuesta,1)+' / 5')+'</b>'+(x.encuestas?' ('+x.encuestas+' respuestas)':'')+' · Cajas cerradas: <b>'+x.cajas+'</b> de '+x.choferes+' choferes'+(x.gastos?' · Gastos de ruta: <b>'+fM(x.gastos)+'</b>':''),
+      pie: 'Gestión de entregas: '+haceTxt(R.at)+(R.cache?' (guardado)':'') });
+  }
+  function bqSucursales(s, al){
+    const c = [];
+    if(s.pendAnt) { c.push('ambar'); al.push({ n:'ambar', txt:'<b>'+s.pendAnt+' '+(s.pendAnt===1?'entrega a sucursal':'entregas a sucursales')+' de días anteriores de esta semana siguen pendientes</b> en la planilla.', tab:'planilla-suc' }); }
+    const sPct = s.pct==null ? '' : s.pct>=90 ? 'verde' : '';
+    const nums = [
+      num(fPct(s.pct), 'Entregas a sucursales (semana)', s.tot ? s.ok+' de '+s.tot+(s.parc?' · '+s.parc+' parciales':'') : 'Sin planilla cargada esta semana', 'Planilla de Entrega de Sucursales de esta semana: entregas marcadas como Entregado sobre el total planificado de lunes a sábado.', sPct),
+      num(s.domingo?'—':fN(s.hoyOk)+' <small>/ '+fN(s.hoyTot)+'</small>', 'Sucursales hoy', s.domingo?'Domingo':'entregadas / planificadas', 'De la planilla de Entrega de Sucursales, las entregas planificadas para hoy y cuántas ya están marcadas como Entregado.'),
+      num(fN(s.pend), 'Pendientes de la semana', s.pendAnt ? s.pendAnt+' de días anteriores' : 'Al día', 'Entregas de la planilla de sucursales de esta semana en estado Pendiente (no incluye las parciales). «De días anteriores» = planificadas para un día que ya pasó.', s.pendAnt?'ambar':''),
+      num(fN(s.recHoy), 'Recorridos de preventa hoy', s.recHoy ? s.zonas+' zonas · '+fN(s.kmRuta)+' km previstos' : 'Sin recorridos cargados', 'Recorridos de Preventa del día (incluye los que llegan solos del TMS). Km previstos = suma del km de ruta de cada recorrido.'),
+      num(fN(s.sucHoy), 'Viajes a sucursales hoy', s.sucHoy ? s.sucursales+' sucursales distintas' : 'Sin viajes cargados', 'Recorridos de Sucursales del día (una fila por sucursal visitada; incluye los del TMS).')
+    ];
+    return bloque({ id:'sucursales', titulo:'Sucursales y preventa', clases:c, abrir:[{tab:'planilla-suc', txt:'Planilla'},{tab:'recorridos', txt:'Recorridos'}],
+      cuerpo:'<div class="tg-nums">'+nums.join('')+'</div>' });
+  }
+  function bqEcommerce(al){
+    const R = TG.ecommerce, x = R && R.datos, ab = [{url:URLS.ecommerce, txt:'Ecommerce'}];
+    if(!x) return bloque({ id:'ecommerce', titulo:'Ecommerce', abrir:ab, cuerpo: TG.error.ecommerce ? '<div class="tg-vacio">No se pudo leer el Ecommerce ('+esc(TG.error.ecommerce)+').</div>' : skel(4) });
+    const c = []; if(x.atrasadas){ c.push('ambar'); al.push({ n:'ambar', txt:'<b>'+x.atrasadas+' '+(x.atrasadas===1?'entrega de ecommerce':'entregas de ecommerce')+' pendiente'+(x.atrasadas===1?'':'s')+' de días anteriores</b>.', url:URLS.ecommerce }); }
+    const tot = x.entregadasHoy + x.pendientes;
+    const nums = [
+      num(fN(x.pendientes), 'Pendientes de entrega', fM(x.importePend)+(x.web?' · '+x.web+' pedidos web':''), 'Facturas activas de la planilla de entregas de Ecommerce en estado pendiente (todas las zonas), con su importe.'),
+      num(fN(x.atrasadas), 'Atrasadas', 'cargadas antes de hoy', 'Pendientes cuya fecha de carga (o fecha de entrega pedida, en los pedidos web) es anterior a hoy: arrastran de otro día.', x.atrasadas?'ambar':'verde'),
+      num(fN(x.entregadasHoy), 'Entregadas hoy', fM(x.importeEntHoy), 'Facturas marcadas como entregadas con fecha y hora de hoy (las activas más las de los días ya cerrados hoy en el historial).'),
+      num(tot ? fPct(x.entregadasHoy/tot*100) : '—', 'Avance del día', 'entregadas ÷ (entregadas + pendientes)', 'Entregadas hoy sobre entregadas hoy + pendientes actuales.')
+    ];
+    return bloque({ id:'ecommerce', titulo:'Ecommerce', clases:c, abrir:ab, cuerpo:'<div class="tg-nums">'+nums.join('')+'</div>',
+      ctx: x.zonasTop.length ? 'Más pendientes: '+x.zonasTop.map(z=>esc(z[0])+' <b>'+z[1]+'</b>').join(' · ') : '', pie:'Ecommerce: '+haceTxt(R.at)+(R.cache?' (guardado)':'') });
+  }
+  function bqVehiculos(al){
+    const R = TG.vehiculos, x = R && R.datos, ab = [{url:URLS.vehiculos, txt:'Recepción de vehículos'}];
+    if(!x) return bloque({ id:'vehiculos', titulo:'Control de vehículos', abrir:ab, cuerpo: TG.error.vehiculos ? '<div class="tg-vacio">No se pudo leer Recepción de vehículos ('+esc(TG.error.vehiculos)+').</div>' : skel(3) });
+    const n = x.paraControlar.length, c = [];
+    const s = n>=5 ? 'rojo' : n ? 'ambar' : 'verde'; c.push(s);
+    if(n) al.push({ n:s, txt:'<b>'+n+' '+(n===1?'vehículo volvió y falta controlarlo':'vehículos volvieron y faltan controlar')+'</b>: '+esc(x.paraControlar.slice(0,6).map(v=>v.patente).join(', '))+(n>6?'…':''), url:URLS.vehiculos });
+    if(x.malas.length) c.push('ambar');
+    const nums = [
+      num(fN(n), 'Para controlar', n ? esc(x.paraControlar.slice(0,3).map(v=>v.patente).join(', '))+(n>3?'…':'') : 'Todos controlados', 'Unidades cuyo último viaje del TMS está Finalizado y todavía no tienen una recepción (fotos + estrellas) posterior al regreso. Mismo criterio que la lista «Para controlar» de Recepción de vehículos (desde el 03/11 13:50).', s),
+      num(fN(x.recepcionesHoy), 'Controles hoy', x.alertasHoy ? x.alertasHoy+' alertas cargadas' : '', 'Recepciones de vehículos registradas hoy.'),
+      num(x.promedio7==null ? '—' : fN(x.promedio7,1)+' <small>/ 5</small>', 'Estado promedio (7 días)', x.recepciones7+' controles', 'Promedio de estrellas (0 a 5) de las recepciones de vehículos de los últimos 7 días. 5 = excelente, 0 = muy mal estado.', x.promedio7==null?'':x.promedio7>=4?'verde':x.promedio7>=3?'':'ambar'),
+      num(fN(x.malas.length), 'En mal estado', x.malas.length ? esc(x.malas.slice(0,3).map(m=>m.patente+' '+m.estrellas+'★').join(', ')) : 'Ninguna', 'Unidades cuyo último control de los últimos 7 días tiene 2 estrellas o menos (Malo / Muy mal estado).', x.malas.length?'ambar':'')
+    ];
+    return bloque({ id:'vehiculos', titulo:'Control de vehículos', clases:c, abrir:ab, cuerpo:'<div class="tg-nums">'+nums.join('')+'</div>',
+      ctx: n ? x.paraControlar.slice(0,4).map(v => '<b>'+esc(v.patente)+'</b> volvió '+fD(isoL(new Date(v.regreso)))+' '+fHora(new Date(v.regreso))+(v.chofer?' ('+esc(v.chofer)+')':'')).join(' · ') : '',
+      pie:'Control de vehículos: '+haceTxt(R.at)+(R.cache?' (guardado)':'') });
+  }
+  function bqBajas(b){
+    const v = (a,p) => { const x = varPct(a,p); return x==null ? 'Mes anterior: sin datos' : (x>0?'+':'')+x+'% vs mes anterior'; };
+    const sv = (a,p) => { const x = varPct(a,p); return x==null ? '' : x>20 ? 'ambar' : x<=0 ? 'verde' : ''; };
+    const c = [sv(b.dep.imp,b.depAnt.imp), sv(b.pv.imp,b.pvAnt.imp)];
+    const nums = [
+      num(fM(b.dep.imp), 'Baja depósito (mes)', fN(b.dep.u)+' unid. · '+v(b.dep.imp,b.depAnt.imp), 'Roturas / bajas cargadas en Baja Depósito desde el 1° del mes. Se compara con el mes anterior a la misma altura (del 1 al '+hoyL().slice(8,10)+'). Ámbar si sube más de 20%.', sv(b.dep.imp,b.depAnt.imp)),
+      num(fM(b.pv.imp), 'Baja preventa (mes)', fN(b.pv.u)+' unid. · '+v(b.pv.imp,b.pvAnt.imp), 'Bajas cargadas en Baja Preventa desde el 1° del mes, comparadas con el mes anterior a la misma altura.', sv(b.pv.imp,b.pvAnt.imp)),
+      num(fN(b.rech.u), 'Rechazos preventa (unid.)', fM(b.rech.imp)+' · '+(b.rechAnt.u ? varTxt(b.rech.u,b.rechAnt.u,'vs mes ant.') : 'mes'), 'Unidades rechazadas por clientes de preventa (Baja Preventa › Rechazos) en el mes, con su importe.')
+    ];
+    return bloque({ id:'bajas', titulo:'Bajas y roturas (mes)', clases:c, abrir:[{tab:'baja-deposito', txt:'Baja depósito'},{tab:'baja-preventa', txt:'Baja preventa'}],
+      cuerpo:'<div class="tg-nums">'+nums.join('')+'</div>',
+      ctx: [(!b.dep.n && b.ultDep) ? 'Última baja de depósito cargada: <b>'+fD(b.ultDep)+'/'+b.ultDep.slice(0,4)+'</b>' : '', (!b.rech.n && b.ultRech) ? 'Último rechazo cargado: <b>'+fD(b.ultRech)+'/'+b.ultRech.slice(0,4)+'</b>' : '', b.rubroTop && b.rubroTop[1] ? 'Rubro con más bajas: <b>'+esc(b.rubroTop[0])+'</b> ('+fM(b.rubroTop[1])+')' : '', b.motivoTop ? 'Motivo de rechazo más repetido: <b>'+esc(b.motivoTop[0])+'</b> ('+b.motivoTop[1]+')' : ''].filter(Boolean).join(' · ') });
+  }
+  function bqPremio(){
+    const R = TG.premio, x = R && R.datos, ab = [{url:URLS.premio, txt:'Premio del mes'}];
+    if(!x) return bloque({ id:'premio', titulo:'Premio del mes', abrir:ab, cuerpo: TG.error.premio ? '<div class="tg-vacio">No se pudo leer el Premio del mes ('+esc(TG.error.premio)+').</div>' : skel(2) });
+    if(x.sinConfig || !x.ranking.length) return bloque({ id:'premio', titulo:'Premio del mes', abrir:ab, cuerpo:'<div class="tg-vacio">Todavía no hay mediciones este mes.</div>' });
+    const L = x.ranking[0];
+    const estado = L.winner ? 'Va ganando' : L.eligible ? 'Supera el mínimo' : !L.complete ? 'Le faltan mediciones' : 'Debajo del mínimo';
+    const nums = [
+      num('🏆 '+esc(L.nombre), 'Va primero', esc(L.tarea)+(L.integrantes && L.integrantes!==L.nombre?' · '+esc(L.integrantes):''), 'Primero del ranking del Premio del mes (mismo cálculo que la app: cumplimiento ponderado de cada métrica contra su objetivo, de 0 a 100).', 'tg-txt'),
+      num(fN(L.score)+' <small>pts</small>', estado, 'Mínimo para el premio: '+fN(x.threshold)+' pts', 'Puntaje del primero y si alcanza el mínimo para ganar. «Le faltan mediciones» = alguna métrica todavía no tiene controles este mes.', L.score>=x.threshold?'verde':L.score>=70?'ambar':'rojo')
+    ];
+    return bloque({ id:'premio', titulo:'Premio del mes', abrir:ab, estado: L.eligible?'verde':'ambar', cuerpo:'<div class="tg-nums">'+nums.join('')+'</div>',
+      ctx: (x.premio?'Premio: <b>'+esc(x.premio)+'</b> · ':'')+(x.ranking.length>1 ? 'Siguen: '+x.ranking.slice(1).map(r=>esc(r.nombre)+' <b>'+r.score+'</b>').join(' · ') : '')+' · '+x.registros+' mediciones en el mes',
+      pie:'Premio: '+haceTxt(R.at)+(R.cache?' (guardado)':'') });
+  }
+
+  // ── Render ─────────────────────────────────────────────────────
+  function render(){
+    const grid = document.getElementById('tg-grid'); if(!grid) return;
+    const al = [];
+    let html = '';
+    try {
+      const A = aptitud(), t = transporte();
+      const bloques = [
+        () => bqTransporte(t, A, al),
+        () => bqFlota(A, t, al),
+        () => bqDepositos(al),
+        () => bqEntregas(al),
+        () => bqRecepcion(recepcion(), al),
+        () => bqSucursales(sucursalesPreventa(), al),
+        () => bqVehiculos(al),
+        () => bqEcommerce(al),
+        () => bqBajas(bajas()),
+        () => bqPremio()
+      ];
+      html = bloques.map(f => { try { return f(); } catch(e) { console.error('Tablero: error en un bloque', e); return ''; } }).join('');
+    } catch(e) { console.error('Tablero', e); }
+    grid.innerHTML = html;
+    const orden = { rojo:0, ambar:1, gris:2 };
+    al.sort((a,b) => orden[a.n]-orden[b.n]);
+    const cont = document.getElementById('tg-alertas');
+    const alHTML = a => '<div class="tg-al '+a.n+'"><span class="tg-dot '+(a.n==='gris'?'':a.n)+'"></span><span class="tg-al-txt">'+a.txt+'</span>'+
+        (a.url ? '<a class="tg-al-ir" href="'+a.url+'" target="_blank" rel="noopener">Ver →</a>' : a.tab && tabVisible(a.tab) ? '<button class="tg-al-ir" type="button" onclick="tgAbrir(\''+a.tab+'\')">Ver →</button>' : '')+'</div>';
+    const VISIBLES = 4, abierto = TG.alertasAbiertas;
+    cont.innerHTML = al.length ? al.slice(0, VISIBLES).map(alHTML).join('') +
+        (al.length > VISIBLES ? '<div class="tg-al-mas"'+(abierto?'':' hidden')+'>'+al.slice(VISIBLES).map(alHTML).join('')+'</div>'+
+          '<button type="button" class="tg-al-btn" onclick="tgAlertasMas(this)">'+(abierto?'Mostrar menos':'Ver '+(al.length-VISIBLES)+' '+(al.length-VISIBLES===1?'alerta más':'alertas más'))+'</button>' : '')
+      : '<div class="tg-al verde"><span class="tg-dot verde"></span><span class="tg-al-txt"><b>Sin alertas.</b> Flota, depósitos y entregas dentro de los rangos normales.</span></div>';
+    const d = new Date();
+    const f = document.getElementById('tg-fecha');
+    if(f) f.innerHTML = '<b>'+d.toLocaleDateString('es-AR',{weekday:'long', day:'numeric', month:'long', year:'numeric'}).replace(/^./, c => c.toUpperCase())+'</b>'+(al.filter(a=>a.n==='rojo').length ? ' · '+al.filter(a=>a.n==='rojo').length+' alertas rojas' : '');
+    const u = document.getElementById('tg-upd'); if(u) u.textContent = 'Actualizado '+fHora(d);
+    TG.ultimoVivo = d;
+  }
+  let pend = null;
+  function renderPronto(){ clearTimeout(pend); pend = setTimeout(() => { if(activo()) render(); }, 800); }
+  const activo = () => { const p = document.getElementById('panel-tablero'); return p && p.classList.contains('active'); };
+
+  window.tgAlertasMas = function(btn){
+    TG.alertasAbiertas = !TG.alertasAbiertas;
+    const m = btn.previousElementSibling; if(m) m.hidden = !TG.alertasAbiertas;
+    btn.textContent = TG.alertasAbiertas ? 'Mostrar menos' : 'Ver '+(m ? m.children.length : '')+' alertas más';
+  };
+  window.tgActualizar = function(){
+    const b = document.getElementById('tg-btn-act'); if(b){ b.disabled = true; setTimeout(() => b.disabled = false, 4000); }
+    cargarRemotos(true); render();
+  };
+  window.tgInit = function(){
+    render();
+    if(TG.iniciado) { cargarRemotos(false); return; } // al volver a la pestaña usa el caché si está fresco
+    TG.iniciado = true;
+    const conDb = () => {
+      if(typeof db==='undefined' || typeof firebase==='undefined') { setTimeout(conDb, 400); return; }
+      db.ref('tablero/depositos').on('value', s => { TG.dep = s.val(); renderPronto(); });
+      db.ref('tms_aptitud').on('value', s => { TG.apt = s.val(); renderPronto(); });
+      setTimeout(() => cargarRemotos(false), 1500);
+    };
+    conDb();
+    addEventListener('tmsdatos', renderPronto);
+    // en vivo: los datos del Parte diario llegan por sus propios listeners; se re-dibuja cada 30 s si está a la vista
+    setInterval(() => { if(activo() && !document.hidden) render(); }, 30000);
+    // remotos: cada 30 min si está a la vista (si el caché es más nuevo, no consulta Firestore)
+    setInterval(() => { if(activo() && !document.hidden) cargarRemotos(false); }, 30*60000);
+    [2500, 6000, 12000].forEach(ms => setTimeout(renderPronto, ms));
+  };
+  // Es la pestaña de inicio: arranca sola
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => { if(activo()) tgInit(); });
+  else if(activo()) tgInit();
 })();
 </script>
 
