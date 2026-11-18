@@ -23418,33 +23418,47 @@ x => { let k; try { k = gr(x.codigo) || 'Sin rubro'; } catch(e) { k = 'Sin rubro
       return { c:o.c, d:o.d, pedido:o.pedido, va, falta:Math.max(0,o.pedido-va), motivo:(r&&r.motivoFalta)||o.motP||'', por:(r&&r.motivoFalta?(r.motivoPor||''):o.porP)||'', at:(r&&r.motivoAt)||o.at||'' }; })
       .filter(o => o.falta > 0);
   }
+  /* ERRORES DEL CONTROLADOR (2026-11-18): conteos que no dieron igual al conteo final aceptado (misma regla que Picking y el TMS). d>0 contó de más. */
+  function pkErrCtl(p){
+    const c = (p && p.control) || {}, D = {}, R = [];
+    Object.values((p && p.pasillos) || {}).forEach(x => Object.entries((x && x.lineas) || {}).forEach(([k,l]) => { if(l && !D[k]) D[k] = { c:String(l.c==null?k:l.c), d:String(l.d||'') }; }));
+    ['c1'].forEach(st => { const L = ((c[st]||{}).lineas) || {}; Object.keys(L).forEach(k => { const r = L[k]; if(!r || r.accion==='diferencia' || r.contado==null) return; const fin = N(r.contado);
+      (r.conteos||[]).slice(0,-1).map(N).filter(v => v!==fin).forEach(v => R.push({ c:(D[k]||{}).c||k, d:(D[k]||{}).d||('Código '+k), ctl:String(r.por||'Sin nombre'), v, fin, dif:v-fin, at:r.at||'' })); }); });
+    return R;
+  }
   function bqPicking(al){
-    const ab = [{url:URLS.picking, txt:'Abrir'}], tit = 'Picking · faltantes y motivos';
+    const ab = [{url:URLS.picking, txt:'Abrir'}], tit = 'Picking · faltantes, motivos y errores del control';
     if(TG.pk === undefined) return bloque({ id:'picking', titulo:tit, ancho:true, abrir:ab, cuerpo: skel(4) });
     const mesK = new Date().toISOString().slice(0,7), P = Object.assign({}, TG.pkArch || {}, TG.pk || {});
     const peds = Object.values(P).filter(p => p && p.pasillos && String(p.fecha||'').slice(0,7) === mesK);
-    const F = []; let piq = 0;
+    const F = [], EC = []; let piq = 0;
     peds.forEach(p => { const ok = Object.values(p.pasillos).some(x => x && x.estado==='listo'); if(ok) piq++;
       const cerrado = (p.control && p.control.c1 && p.control.c1.estado==='listo') || p.cargadoEn || p.archivado || (TG.pkArch && TG.pkArch[p.id]); if(!cerrado) return;
+      pkErrCtl(p).forEach(o => EC.push(Object.assign({ dest: p.zona || (p.destinos||[])[0] || p.id }, o)));
       pkParciales(p).forEach(o => F.push(Object.assign({ dest: p.zona || (p.destinos||[])[0] || p.id }, o))); });
     const U = F.reduce((t,o) => t+o.falta, 0), sin = F.filter(o => !o.motivo), c = [];
     if(sin.length){ c.push('ambar'); al.push({ n:'ambar', txt:'<b>'+fN(sin.length)+' '+(sin.length===1?'faltante de picking sin motivo':'faltantes de picking sin motivo')+'</b> este mes'+(sin[0]?': '+esc(sin[0].d)+' ('+esc(sin[0].dest)+')':''), url:URLS.picking }); }
     const agr = (key) => { const m = {}; F.forEach(o => { const k = key(o); const x = m[k] = m[k] || { k, n:0, u:0 }; x.n++; x.u += o.falta; }); return Object.values(m).sort((a,b) => b.u-a.u || b.n-a.n); };
     const mot = agr(o => o.motivo ? o.motivo.replace(/^Otro: /,'Otro: ') : 'Sin motivo'), prod = agr(o => o.d || o.c);
-    const rk = (L, sub) => { L = L.slice(0,6); const max = L.length ? (L[0].u || 1) : 1;
+    const rk = (L, sub, un) => { un = un || 'u.'; L = L.slice(0,6); const max = L.length ? (L[0].u || 1) : 1;
       return L.length ? '<ol class="tg-rank">'+L.map((p,i) => '<li><span class="tg-rank-n">'+(i+1)+'</span><span class="tg-rank-p"><b'+(p.k==='Sin motivo'?' style="color:var(--rojo,#e0261c)"':'')+'>'+esc(p.k)+'</b><small>'+esc(sub(p))+'</small>'+
-        '<i class="tg-rank-bar"><i style="width:'+(p.u/max*100).toFixed(0)+'%"></i></i></span><span class="tg-rank-v">'+fN(p.u)+' <small>u.</small></span></li>').join('')+'</ol>' : '<div class="tg-vacio">Sin faltantes este mes.</div>'; };
+        '<i class="tg-rank-bar"><i style="width:'+(p.u/max*100).toFixed(0)+'%"></i></i></span><span class="tg-rank-v">'+fN(p.u)+' <small>'+un+'</small></span></li>').join('')+'</ol>' : '<div class="tg-vacio">Sin faltantes este mes.</div>'; };
     const nums = [
       num(fN(piq), 'Pedidos piqueados', 'este mes', 'Pedidos de picking del mes con al menos un pasillo terminado (activos y archivados).'),
       num(fN(F.length), 'Productos con faltante', fN(U)+' u. faltaron', 'Productos que salieron con menos de lo pedido (o no salieron), después del control.', F.length ? 'ambar' : 'verde'),
       num(mot[0] && mot[0].k!=='Sin motivo' ? esc(mot[0].k) : (mot[1] ? esc(mot[1].k) : '—'), 'Motivo principal', mot.length ? fN((mot[0].k!=='Sin motivo'?mot[0]:mot[1]||mot[0]).u)+' u.' : '', 'El motivo con más unidades faltantes en el mes.'),
+      num(fN(EC.length), 'Errores del controlador', EC.length ? fN(EC.filter(o => o.dif>0).length)+' de más · '+fN(EC.filter(o => o.dif<0).length)+' de menos' : 'ninguno', 'Conteos del control que no dieron igual al conteo final: el controlador contó de más o de menos y después lo corrigió al recontar.', EC.length ? 'ambar' : 'verde'),
       num(fN(sin.length), 'Sin motivo', sin.length ? 'definir en el control' : 'todos definidos', 'Faltantes sin motivo: ni el controlador ni el pickeador dijeron qué pasó. Desde el 17/11 el control no se puede cerrar sin definirlo.', sin.length ? 'ambar' : 'verde')
     ];
     const ult = F.slice().sort((a,b) => String(b.at).localeCompare(String(a.at)))[0];
     return bloque({ id:'picking', titulo:tit, ancho:true, clases:c, abrir:ab,
       cuerpo:'<div class="tg-nums">'+nums.join('')+'</div>'+
         '<div class="tg-recep-cols"><div><div class="tg-sub">Motivos de los faltantes · mes</div>'+rk(mot, p => fN(p.n)+' '+(p.n===1?'producto':'productos'))+'</div>'+
-        '<div><div class="tg-sub">Productos que más faltan · mes</div>'+rk(prod, p => fN(p.n)+' '+(p.n===1?'vez':'veces'))+'</div></div>',
+        '<div><div class="tg-sub">Productos que más faltan · mes</div>'+rk(prod, p => fN(p.n)+' '+(p.n===1?'vez':'veces'))+'</div></div>'+
+        (() => { const m = {}; EC.forEach(o => { const x = m[o.ctl] = m[o.ctl] || { k:o.ctl, u:0, mas:0, men:0 }; x.u++; if(o.dif>0) x.mas++; else x.men++; });
+          const L = Object.values(m).sort((a,b) => b.u-a.u), ue = EC.slice().sort((a,b) => String(b.at).localeCompare(String(a.at))).slice(0,6);
+          return '<div class="tg-recep-cols"><div><div class="tg-sub">Errores del controlador · por controlador · mes</div>'+(L.length ? rk(L, p => fN(p.mas)+' de más · '+fN(p.men)+' de menos', 'err.') : '<div class="tg-vacio">Sin errores de conteo este mes.</div>')+'</div>'+
+            '<div><div class="tg-sub">Últimos errores de conteo</div>'+(ue.length ? '<ol class="tg-rank">'+ue.map((o,i) => '<li><span class="tg-rank-n">'+(i+1)+'</span><span class="tg-rank-p"><b>'+esc(o.d)+'</b><small>'+esc(o.ctl)+' · '+esc(o.dest)+' · contó '+fN(o.v)+', bien: '+fN(o.fin)+'</small></span><span class="tg-rank-v" style="color:var(--ambar,#e0a020)">'+(o.dif>0?'+'+fN(o.dif):fN(o.dif))+'</span></li>').join('')+'</ol>' : '<div class="tg-vacio">—</div>')+'</div></div>'; })(),
       ctx: ult ? 'Último: <b>'+esc(ult.d)+'</b> · '+esc(ult.dest)+' · va '+fN(ult.va)+' de '+fN(ult.pedido)+' · '+(ult.motivo?esc(ult.motivo):'<b>sin motivo</b>')+(ult.por?' ('+esc(ult.por)+')':'') : '',
       pie:'Picking: en vivo · '+fN(peds.length)+' pedidos del mes (activos y últimos 80 archivados). El motivo lo define el control; si no hay, el del pickeador.' });
   }
