@@ -1101,6 +1101,11 @@
   .rep-cmp-chip{display:flex;flex-direction:column;gap:2px;min-width:150px;padding:9px 13px;border-radius:10px;border:1px solid var(--border,#dde1e9);border-left:5px solid var(--c);background:color-mix(in srgb,var(--c) 9%,transparent);cursor:pointer;font:inherit;color:inherit;text-align:left}
   .rep-cmp-chip b{font-size:20px;color:var(--c)}.rep-cmp-chip span{font-size:11.5px;font-weight:600}
   .rep-cmp-chip.on{box-shadow:0 0 0 2px var(--c) inset}
+  .rep-cmp-tg{display:flex;align-items:center;gap:8px;width:100%;justify-content:center;padding:8px;border-radius:8px;border:1px dashed var(--border,#cfd5e1);background:transparent;color:var(--text2,inherit);font:inherit;font-size:12.5px;font-weight:700;cursor:pointer}
+  .rep-cmp-tg:hover{background:rgba(139,92,246,.08)}.rep-cmp-tg .ar{display:inline-block;transition:transform .25s ease;font-size:14px}.rep-cmp-tg[aria-expanded="true"] .ar{transform:rotate(180deg)}
+  .rep-cmp-det{margin-top:10px;animation:repCmpIn .3s ease-out}
+  @keyframes repCmpIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+  @media (prefers-reduced-motion:reduce){.rep-cmp-det{animation:none}.rep-cmp-tg .ar{transition:none}}
   .rep-cmp-tbl{width:100%;border-collapse:collapse;font-size:12.5px}
   .rep-cmp-tbl th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--text3);padding:6px 8px;border-bottom:1px solid var(--border,#dde1e9)}
   .rep-cmp-tbl td{padding:7px 8px;border-bottom:1px solid var(--border,#eef0f4);vertical-align:top}
@@ -12829,6 +12834,9 @@ function repDeliveriesFor(iso) {
 // y las cruza con las programadas por proveedor + fecha. No escribe nada: solo muestra.
 const REP_TMS = {};           // 'aaaa-mm' -> { at, lista, cargando, error }
 let repCmpFiltro = 'todas';
+let repCmpAbierto = false; // la lista detallada arranca plegada: solo las tarjetas
+function repCmpChip(v) { if (repCmpAbierto && repCmpFiltro === v) repCmpAbierto = false; else { repCmpFiltro = v; repCmpAbierto = true; } repRender(); }
+function repCmpToggle() { repCmpAbierto = !repCmpAbierto; repRender(); }
 function repTmsMes(prefijo) {
   const c = REP_TMS[prefijo];
   if (c && (c.cargando || Date.now() - c.at < 180000)) return c;
@@ -12897,17 +12905,21 @@ function repRenderComparativa(X) {
   filas.sort((a, b) => a.f === b.f ? String(a.prov || '').localeCompare(String(b.prov || '')) : a.f.localeCompare(b.f));
   const EST = { ok: 'Programada y recibida', noprog: 'Recibida sin programar', falta: 'Programada, no llegó', futura: 'Programada · por llegar' };
   const palR = L => L.reduce((s, t) => s + (Number(t.pallets) || 0), 0);
-  const chip = (v, n, txt, c) => '<button type="button" class="rep-cmp-chip' + (repCmpFiltro === v ? ' on' : '') + '" style="--c:' + c + '" onclick="repCmpFiltro=\'' + v + '\';repRender()"><b>' + n + '</b><span>' + txt + '</span></button>';
+  const chip = (v, n, txt, c) => '<button type="button" class="rep-cmp-chip' + (repCmpAbierto && repCmpFiltro === v ? ' on' : '') + '" style="--c:' + c + '" onclick="repCmpChip(\'' + v + '\')"><b>' + n + '</b><span>' + txt + '</span></button>';
   const recProgPal = palR(X.ok.map(p => X.porProg[p.id]));
   let h = '<div class="rep-cmp-chips">'
-    + chip('todas', X.ok.length + X.noprog.length, 'Recibidas en total (TMS) · ' + (recProgPal + palR(X.noprog)) + ' pl', '#1a3a6b')
+    + chip('todas', X.ok.length + X.noprog.length, 'Recibidas en total (TMS) · ' + (recProgPal + palR(X.noprog)) + ' pl', '#3b82f6')
     + chip('ok', X.ok.length, 'Programadas y recibidas · ' + recProgPal + ' pl', '#38a169')
     + chip('noprog', X.noprog.length, 'Recibidas sin programar · ' + palR(X.noprog) + ' pl', '#8b5cf6')
     + chip('falta', X.falta.length, 'Programadas que no llegaron', '#e67e22')
     + '</div>';
   const vis = filas.filter(r => repCmpFiltro === 'todas' || r.k === repCmpFiltro);
-  if (!vis.length) return body.innerHTML = h + '<p style="color:var(--text3);font-size:13px;">No hay recepciones en este grupo para el mes.</p>';
-  h += '<div style="overflow-x:auto"><table class="rep-cmp-tbl"><thead><tr><th>Fecha</th><th>Proveedor</th><th>Programado</th><th>Recibido (TMS)</th><th>Estado</th></tr></thead><tbody>'
+  const NOM = { todas: 'todo el mes', ok: 'programadas y recibidas', noprog: 'recibidas sin programar', falta: 'programadas que no llegaron' };
+  h += '<button type="button" class="rep-cmp-tg" onclick="repCmpToggle()" aria-expanded="' + repCmpAbierto + '"><span class="ar">▾</span>'
+    + (repCmpAbierto ? 'Ocultar detalle' : 'Ver detalle · ' + NOM[repCmpFiltro] + ' (' + vis.length + ')') + '</button>';
+  if (!repCmpAbierto) return body.innerHTML = h;
+  if (!vis.length) return body.innerHTML = h + '<p class="rep-cmp-det" style="color:var(--text3);font-size:13px;">No hay recepciones en este grupo para el mes.</p>';
+  h += '<div class="rep-cmp-det" style="overflow-x:auto"><table class="rep-cmp-tbl"><thead><tr><th>Fecha</th><th>Proveedor</th><th>Programado</th><th>Recibido (TMS)</th><th>Estado</th></tr></thead><tbody>'
     + vis.map(r => '<tr class="' + r.k + '"><td style="white-space:nowrap">' + repDisplayDate(r.f) + (r.rec && r.prog && r.rec.fecha !== r.prog.fecha ? '<div class="rep-cmp-sub">llegó ' + repDisplayDate(r.rec.fecha) + '</div>' : '') + '</td>'
       + '<td><strong>' + repEsc(r.prog ? r.prog.proveedor : r.rec.proveedor) + '</strong>' + (r.prog && r.rec && String(r.rec.proveedor || '').trim().toUpperCase() !== String(r.prog.proveedor || '').trim().toUpperCase() ? '<div class="rep-cmp-sub">en el TMS: ' + repEsc(r.rec.proveedor) + '</div>' : '') + '</td>'
       + '<td>' + (r.prog ? (Number(r.prog.pallets) || 0) + ' pl' + (r.prog.producto ? '<div class="rep-cmp-sub">' + repEsc(r.prog.producto) + '</div>' : '') : '<span class="rep-cmp-sub">— no estaba programada</span>') + '</td>'
