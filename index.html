@@ -2864,7 +2864,7 @@
       <div class="card-title"><span class="dot" style="background:#8b5cf6"></span>Programado vs. recibido (TMS)
         <span class="info-ico" onclick="mostrarInfoTarjeta(this,event)"
           data-info-title="Programado vs. recibido"
-          data-info-body="Cruza, del mes que estás viendo, las recepciones programadas con las recepciones que se cargaron en el TMS (Recepción de mercadería, foto del remito). Se emparejan por proveedor y fecha (el mismo día, o hasta 3 días de diferencia si el camión se adelantó o atrasó). Verde: programada y recibida. Violeta: recibida en el TMS pero no estaba programada. Naranja: programada, ya pasó la fecha y no hay recepción en el TMS. Gris: programada para más adelante.">ⓘ</span>
+          data-info-body="Cruza, del mes que estás viendo, las recepciones programadas con las recepciones que se cargaron en el TMS (Recepción de mercadería, foto del remito). Se emparejan por proveedor y fecha (el mismo día, o hasta 3 días de diferencia si el camión se adelantó o atrasó). Verde: programada y recibida (se marca sola como Cumplido; si la volvés a poner en Pendiente a mano, se respeta). Violeta: recibida en el TMS pero no estaba programada. Naranja: programada, ya pasó la fecha y no hay recepción en el TMS. Gris: programada para más adelante.">ⓘ</span>
       </div>
       <div id="rep-cmp-body"><p style="color:var(--text3);font-size:13px;">Cargando recepciones del TMS…</p></div>
     </div>
@@ -12917,11 +12917,29 @@ function repRenderComparativa(X) {
   body.innerHTML = h;
 }
 
+/* 2026-11-25: si una programada se recibió en el TMS, se marca sola como «Cumplido» (queda guardado quién/qué remito en cumplidoAuto).
+   Si alguien la vuelve a poner en Pendiente a mano, se respeta (autoNo) y no se vuelve a marcar. */
+const REP_AUTO_EN_CURSO = new Set();
+function repAutoCumplir(X) {
+  if (!X || !X.cargado || typeof db === 'undefined' || !db) return;
+  X.ok.forEach(p => {
+    if (p.estado === 'Cumplido' || p.autoNo || REP_AUTO_EN_CURSO.has(p.id)) return;
+    const t = X.porProg[p.id]; if (!t) return;
+    const auto = { tmsId: t.id, remito: t.remitoNro || '', fechaTms: t.fecha || '', pallets: Number(t.pallets) || 0, at: new Date().toISOString() };
+    REP_AUTO_EN_CURSO.add(p.id);
+    p.estado = 'Cumplido'; p.cumplidoAuto = auto;
+    db.ref('recepciones_dep/' + p.id).update({ estado: 'Cumplido', cumplidoAuto: auto })
+      .catch(e => { console.error('Auto-cumplido', e); p.estado = 'Pendiente'; delete p.cumplidoAuto; })
+      .finally(() => setTimeout(() => REP_AUTO_EN_CURSO.delete(p.id), 5000));
+  });
+}
+
 function repRender() {
   const label = document.getElementById('rep-mes-label');
   if (label) label.textContent = REP_MESES[repMesActual.getMonth()] + ' ' + repMesActual.getFullYear();
   const pfx = repMesActual.getFullYear() + '-' + String(repMesActual.getMonth() + 1).padStart(2, '0');
   window.__repX = repCruce(pfx);
+  repAutoCumplir(window.__repX);
   if (repVista === 'calendario') repRenderCalendario(); else repRenderLista();
   repRenderCumplimiento();
   repRenderComparativa(window.__repX);
@@ -13152,6 +13170,8 @@ function repToggleEstado(id) {
   if (!item) return;
   const previo = item.estado;
   item.estado = (item.estado === 'Cumplido') ? 'Pendiente' : 'Cumplido';
+  if (item.estado === 'Pendiente' && window.__repX && window.__repX.porProg[item.id]) item.autoNo = true;
+  else if (item.estado === 'Cumplido') delete item.autoNo;
   repRender();
   repActualizarBanner();
   fbSaveRecepcionProg(item).catch(() => {
@@ -13174,7 +13194,7 @@ function repFilaDia(item) {
   return `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;background:#f5f8ff;border:1px solid #dde1e9;border-radius:8px;padding:9px 12px;margin-bottom:8px;">
       <div style="flex:1;min-width:0;">
         <strong style="color:var(--portal-navy);">${repEsc(item.proveedor)}</strong>${item.patente ? ' · '+repEsc(item.patente) : ''}
-        <div style="color:var(--text3);font-size:11.5px;margin-top:2px;">${repEsc(item.producto)} · ${repEsc(item.usuario||'—')}</div>${(window.__repX && window.__repX.porProg[item.id]) ? '<div style="color:#276749;font-size:11.5px;margin-top:2px;font-weight:600;">✓ Recibida en el TMS: '+repEsc(repRecTxt(window.__repX.porProg[item.id]))+'</div>' : ''}
+        <div style="color:var(--text3);font-size:11.5px;margin-top:2px;">${repEsc(item.producto)} · ${repEsc(item.usuario||'—')}</div>${(window.__repX && window.__repX.porProg[item.id]) ? '<div style="color:#276749;font-size:11.5px;margin-top:2px;font-weight:600;">✓ Recibida en el TMS: '+repEsc(repRecTxt(window.__repX.porProg[item.id]))+(item.cumplidoAuto ? ' · marcada Cumplido automáticamente' : '')+'</div>' : ''}
       </div>
       <div style="font-family:'IBM Plex Mono',monospace;color:#276749;font-weight:600;">${repEsc(String(item.pallets))} pl</div>
       <button class="rep-estado-badge ${estado==='Cumplido'?'cumplido':'pendiente'}" onclick="repToggleEstado('${item.id}'); repRefrescarOverlayDia();">${estado==='Cumplido' ? '✓ Cumplido' : '○ Pendiente'}</button>
