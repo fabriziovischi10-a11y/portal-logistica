@@ -1104,6 +1104,11 @@
   .rep-cmp-tg{display:flex;align-items:center;gap:8px;width:100%;justify-content:center;padding:8px;border-radius:8px;border:1px dashed var(--border,#cfd5e1);background:transparent;color:var(--text2,inherit);font:inherit;font-size:12.5px;font-weight:700;cursor:pointer}
   .rep-cmp-tg:hover{background:rgba(139,92,246,.08)}.rep-cmp-tg .ar{display:inline-block;transition:transform .25s ease;font-size:14px}.rep-cmp-tg[aria-expanded="true"] .ar{transform:rotate(180deg)}
   .rep-cmp-det{margin-top:10px;animation:repCmpIn .3s ease-out}
+  .rep-etq-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin:4px 0 12px}
+  .rep-etq-dep{border:1px solid var(--border,#dde1e9);border-left:5px solid var(--c);border-radius:10px;padding:10px 13px;background:color-mix(in srgb,var(--c) 7%,transparent)}
+  .rep-etq-dep h4{margin:0 0 6px;font-size:12px;text-transform:uppercase;letter-spacing:.5px}
+  .rep-etq-nums{display:flex;gap:14px;align-items:flex-end}.rep-etq-nums div{display:flex;flex-direction:column}.rep-etq-nums small{font-size:10.5px;color:var(--text3);font-weight:600}.rep-etq-nums b{font-size:20px}
+  .rep-etq-dif{margin-top:6px;font-size:12px;font-weight:700;color:var(--c)}
   @keyframes repCmpIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
   @media (prefers-reduced-motion:reduce){.rep-cmp-det{animation:none}.rep-cmp-tg .ar{transition:none}}
   .rep-cmp-tbl{width:100%;border-collapse:collapse;font-size:12.5px}
@@ -2879,6 +2884,16 @@
           data-info-body="Cruza, del mes que estás viendo, las recepciones programadas con las recepciones que se cargaron en el TMS (Recepción de mercadería, foto del remito). Se emparejan por proveedor y fecha (el mismo día, o hasta 3 días de diferencia si el camión se adelantó o atrasó). Verde: programada y recibida (se marca sola como Cumplido; si la volvés a poner en Pendiente a mano, se respeta). Violeta: recibida en el TMS pero no estaba programada. Naranja: programada, ya pasó la fecha y no hay recepción en el TMS. Gris: programada para más adelante.">ⓘ</span>
       </div>
       <div id="rep-cmp-body"><p style="color:var(--text3);font-size:13px;">Cargando recepciones del TMS…</p></div>
+    </div>
+
+    <div class="card" id="rep-etq-card">
+      <div class="card-title" style="flex-wrap:wrap;gap:8px"><span class="dot" style="background:#0891b2"></span>Etiquetado WMS vs. remitos
+        <span class="info-ico" onclick="mostrarInfoTarjeta(this,event)"
+          data-info-title="Etiquetado WMS vs. remitos"
+          data-info-body="Compara, día por día y por depósito, los pallets que dicen los remitos cargados en el TMS (Recepción de mercadería) contra los pallets nuevos que se etiquetaron en el WMS (Omarion). Cada 10 minutos la PC del depósito descarga el stock del WMS: como los números de pallet son correlativos, los que aparecen por primera vez son los recién etiquetados (se toma la hora y la primera ubicación donde aparecen). El depósito sale de la ubicación (pasillos A–J = Dep. 15, K–AG = Dep. 3 / Parque Logístico, AH–AW = Dep. 1). Ojo: si un camión se etiqueta al día siguiente, la diferencia aparece repartida entre los dos días. También pueden aparecer pallets nuevos que no son de proveedores (reacomodos o armado de pallets internos).">ⓘ</span>
+        <input type="date" id="rep-etq-dia" style="margin-left:auto;font:inherit;font-size:12.5px;padding:4px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:inherit" onchange="repEtqDia=this.value;repEtqRender()">
+      </div>
+      <div id="rep-etq-body"><p style="color:var(--text3);font-size:13px;">Cargando…</p></div>
     </div>
 
     <div class="card">
@@ -12859,7 +12874,7 @@ function repTmsMes(prefijo) {
     } catch (e) { console.error('Recepciones TMS', e); x.error = e.message || String(e); }
     x.cargando = false; x.at = Date.now();
     const p = repMesActual.getFullYear() + '-' + String(repMesActual.getMonth() + 1).padStart(2, '0');
-    if (p === prefijo) { repRender(); repRefrescarOverlayDia(); }
+    if (p === prefijo) { repRender(); repRefrescarOverlayDia(); } else repEtqRender();
   })();
   return REP_TMS[prefijo];
 }
@@ -12953,6 +12968,60 @@ function repAutoCumplir(X) {
   });
 }
 
+// ===== 2026-11-25: ETIQUETADO WMS vs. REMITOS =====
+// Pallets nuevos del WMS: los registra la tarea de la PC del depósito (depositos-3d/.claude/etiquetado.ps1) en wms_etiquetado/<día>.
+// Remitos: recepciones del TMS (mismo caché por mes que «Programado vs. recibido»).
+let repEtqDia = '', repEtqAbierto = false, repEtqRef = null, repEtqDatos = null, repEtqDiaCargado = '';
+const REP_ETQ_DEPS = [['15', 'Depósito 15', '#0891b2'], ['3', 'Dep. 3 · Parque Logístico', '#d97706'], ['1', 'Depósito 1', '#7c3aed']];
+function repEtqDepTms(d) { const s = String(d || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase(); return /15/.test(s) ? '15' : /parque|centro|\b3\b/.test(s) ? '3' : /\b1\b/.test(s) ? '1' : ''; }
+function repEtqToggle() { repEtqAbierto = !repEtqAbierto; repEtqRender(); }
+function repEtqRender() {
+  const body = document.getElementById('rep-etq-body'); if (!body) return;
+  if (!repEtqDia) repEtqDia = repHoyStr();
+  const inp = document.getElementById('rep-etq-dia'); if (inp && inp.value !== repEtqDia) inp.value = repEtqDia;
+  if (repEtqDiaCargado !== repEtqDia && typeof db !== 'undefined' && db) {
+    if (repEtqRef) repEtqRef.off();
+    repEtqDiaCargado = repEtqDia; repEtqDatos = null;
+    repEtqRef = db.ref('wms_etiquetado/' + repEtqDia);
+    repEtqRef.on('value', sn => { repEtqDatos = sn.val() || {}; repEtqRender(); }, e => { console.error('wms_etiquetado', e); repEtqDatos = {}; repEtqRender(); });
+  }
+  const c = repTmsMes(repEtqDia.slice(0, 7));
+  if (!c.lista || repEtqDatos === null) { body.innerHTML = '<p style="color:var(--text3);font-size:13px;">' + (c.error ? 'No se pudieron leer los remitos del TMS (' + repEsc(c.error) + ').' : 'Cargando…') + '</p>'; return; }
+  const rem = c.lista.filter(r => r.fecha === repEtqDia);
+  const pals = Object.keys(repEtqDatos).map(k => Object.assign({ id: k.replace(/^p/, '') }, repEtqDatos[k]));
+  const fN0 = n => (Number(n) || 0).toLocaleString('es-AR', { maximumFractionDigits: 0 });
+  const grupos = REP_ETQ_DEPS.map(([k, nom, col]) => ({ k, nom, col, R: rem.filter(r => repEtqDepTms(r.deposito) === k), P: pals.filter(p => p.d === k) }));
+  const sinDepR = rem.filter(r => !repEtqDepTms(r.deposito)), sinDepP = pals.filter(p => !REP_ETQ_DEPS.some(d => d[0] === p.d));
+  if (sinDepR.length || sinDepP.length) grupos.push({ k: '', nom: 'Sin depósito identificado', col: '#64748b', R: sinDepR, P: sinDepP });
+  let h = '';
+  if (!pals.length && repEtqDia < '2026-11-26') h += '<p style="color:var(--text3);font-size:12.5px;margin:0 0 8px">El registro de pallets etiquetados arrancó el 25/11/2026 a la tarde: antes de esa hora no hay datos del WMS.</p>';
+  h += '<div class="rep-etq-grid">' + grupos.map(g => {
+    const pr = g.R.reduce((s, r) => s + (Number(r.pallets) || 0), 0), pe = g.P.length, dif = pe - pr;
+    const col = !pr && !pe ? '#64748b' : dif === 0 ? '#16a34a' : '#e67e22';
+    const txt = !pr && !pe ? 'Sin movimiento' : dif === 0 ? '✓ Coincide' : dif < 0 ? 'Faltan etiquetar ' + fN0(-dif) + ' pallets' : 'Se etiquetaron ' + fN0(dif) + ' pallets de más';
+    return '<div class="rep-etq-dep" style="--c:' + g.col + '"><h4>' + repEsc(g.nom) + '</h4><div class="rep-etq-nums">'
+      + '<div><small>Según remitos (' + g.R.length + ')</small><b>' + fN0(pr) + ' pl</b></div>'
+      + '<div><small>Etiquetados WMS</small><b>' + fN0(pe) + ' pl</b></div></div>'
+      + '<div class="rep-etq-dif" style="--c:' + col + '">' + txt + '</div></div>';
+  }).join('') + '</div>';
+  h += '<button type="button" class="rep-cmp-tg" onclick="repEtqToggle()" aria-expanded="' + repEtqAbierto + '"><span class="ar">▾</span>' + (repEtqAbierto ? 'Ocultar detalle' : 'Ver detalle · remitos y productos etiquetados') + '</button>';
+  if (repEtqAbierto) {
+    h += '<div class="rep-cmp-det">' + grupos.filter(g => g.R.length || g.P.length).map(g => {
+      const porProd = {};
+      g.P.forEach(p => (p.i || []).forEach(it => { const x = porProd[it.c] || (porProd[it.c] = { c: it.c, n: it.n, pal: new Set(), q: 0, t: p.t, u: new Set() }); x.pal.add(p.id); x.q += Number(it.q) || 0; if (p.t < x.t) x.t = p.t; x.u.add(p.u); }));
+      const prods = Object.values(porProd).sort((a, b) => a.t.localeCompare(b.t));
+      return '<h4 style="margin:14px 0 6px;font-size:12.5px;color:' + g.col + '">' + repEsc(g.nom) + '</h4>'
+        + '<div style="overflow-x:auto"><table class="rep-cmp-tbl"><thead><tr><th>Remitos del TMS</th><th>Remito</th><th>Pallets</th></tr></thead><tbody>'
+        + (g.R.length ? g.R.map(r => '<tr><td><strong>' + repEsc(r.proveedor || '—') + '</strong></td><td>' + repEsc(r.remitoNro || '—') + '</td><td>' + fN0(r.pallets) + ' pl</td></tr>').join('') : '<tr><td colspan="3" class="rep-cmp-sub">No hay remitos cargados en el TMS ese día.</td></tr>')
+        + '</tbody></table></div>'
+        + '<div style="overflow-x:auto;margin-top:8px"><table class="rep-cmp-tbl"><thead><tr><th>Etiquetado en el WMS</th><th>Código</th><th>Pallets</th><th>Unidades</th><th>Primera vez</th></tr></thead><tbody>'
+        + (prods.length ? prods.map(x => '<tr><td><strong>' + repEsc(x.n) + '</strong><div class="rep-cmp-sub">' + repEsc([...x.u].slice(0, 3).join(', ')) + (x.u.size > 3 ? '…' : '') + '</div></td><td>' + repEsc(x.c) + '</td><td>' + x.pal.size + '</td><td>' + fN0(x.q) + '</td><td>' + repEsc(String(x.t || '').slice(11, 16)) + '</td></tr>').join('') : '<tr><td colspan="5" class="rep-cmp-sub">No se detectaron pallets nuevos en el WMS ese día.</td></tr>')
+        + '</tbody></table></div>';
+    }).join('') + '</div>';
+  }
+  body.innerHTML = h;
+}
+
 function repRender() {
   const label = document.getElementById('rep-mes-label');
   if (label) label.textContent = REP_MESES[repMesActual.getMonth()] + ' ' + repMesActual.getFullYear();
@@ -12962,6 +13031,7 @@ function repRender() {
   if (repVista === 'calendario') repRenderCalendario(); else repRenderLista();
   repRenderCumplimiento();
   repRenderComparativa(window.__repX);
+  repEtqRender();
 }
 
 // KPIs + donut de cumplimiento del mes visible (repMesActual) — mismos
