@@ -1095,6 +1095,20 @@
   .rep-tag-stack{display:flex;flex-direction:column;gap:3px;flex:1;overflow:hidden;}
   .rep-tag{font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;background:#e8f0fb;color:#1a3a6b;border-left:3px solid var(--portal-navy);border-radius:3px;padding:2px 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .rep-tag.cumplido{background:#e6f4ed;color:#276749;border-left-color:#38a169;opacity:.8;}
+  /* 2026-11-25: recibidas en el TMS que no estaban programadas → violeta */
+  .rep-tag.noprog{background:#f1e8ff;color:#5b21b6;border-left-color:#8b5cf6;opacity:1;}
+  .rep-cmp-chips{display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 12px}
+  .rep-cmp-chip{display:flex;flex-direction:column;gap:2px;min-width:150px;padding:9px 13px;border-radius:10px;border:1px solid var(--border,#dde1e9);border-left:5px solid var(--c);background:color-mix(in srgb,var(--c) 9%,transparent);cursor:pointer;font:inherit;color:inherit;text-align:left}
+  .rep-cmp-chip b{font-size:20px;color:var(--c)}.rep-cmp-chip span{font-size:11.5px;font-weight:600}
+  .rep-cmp-chip.on{box-shadow:0 0 0 2px var(--c) inset}
+  .rep-cmp-tbl{width:100%;border-collapse:collapse;font-size:12.5px}
+  .rep-cmp-tbl th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--text3);padding:6px 8px;border-bottom:1px solid var(--border,#dde1e9)}
+  .rep-cmp-tbl td{padding:7px 8px;border-bottom:1px solid var(--border,#eef0f4);vertical-align:top}
+  .rep-cmp-tbl tr.ok td:first-child{border-left:4px solid #38a169}.rep-cmp-tbl tr.noprog td{background:rgba(139,92,246,.12)}.rep-cmp-tbl tr.noprog td:first-child{border-left:4px solid #8b5cf6}
+  .rep-cmp-tbl tr.falta td:first-child{border-left:4px solid #e67e22}.rep-cmp-tbl tr.futura td:first-child{border-left:4px solid #9aa3b5}
+  .rep-cmp-est{display:inline-block;font-size:11px;font-weight:700;border-radius:20px;padding:2px 9px;white-space:nowrap}
+  .rep-cmp-est.ok{background:#e6f4ed;color:#276749}.rep-cmp-est.noprog{background:#ede4ff;color:#6d28d9}.rep-cmp-est.falta{background:#fdebd8;color:#b45309}.rep-cmp-est.futura{background:#eef0f4;color:#5a6478}
+  .rep-cmp-sub{color:var(--text3);font-size:11px}
   .rep-day-more{font-size:10px;color:var(--text3);font-weight:600;}
   .rep-pallet-badge{position:absolute;top:6px;right:6px;background:#e6f4ed;color:#276749;font-size:9.5px;font-weight:700;border-radius:20px;padding:1px 6px;font-family:'IBM Plex Mono',monospace;}
   .rep-truck-badge{background:#e8f0fb;color:#1a3a6b;font-size:9.5px;font-weight:700;border-radius:20px;padding:1px 6px;font-family:'IBM Plex Mono',monospace;white-space:nowrap;line-height:1.5;}
@@ -1245,6 +1259,11 @@
   [data-theme="dark"] .rep-tag.cumplido,
   [data-theme="dark"] .rep-pallet-badge,
   [data-theme="dark"] .rep-estado-badge.cumplido { background: rgba(72,187,120,.16); color: #7fdba0; }
+  [data-theme="dark"] .rep-tag.noprog { background: rgba(139,92,246,.24); color: #d4bfff; }
+  [data-theme="dark"] .rep-cmp-est.ok { background: rgba(72,187,120,.16); color: #7fdba0; }
+  [data-theme="dark"] .rep-cmp-est.noprog { background: rgba(139,92,246,.24); color: #d4bfff; }
+  [data-theme="dark"] .rep-cmp-est.falta { background: rgba(230,126,34,.18); color: #f6b27a; }
+  [data-theme="dark"] .rep-cmp-est.futura { background: rgba(255,255,255,.08); color: #b7c0d4; }
   [data-theme="dark"] .rep-truck-badge { background: oklch(0.8356 0.0735 265.1726 / .16); color: #b7cdf2; }
   [data-theme="dark"] .rep-estado-badge.pendiente { background: rgba(236,201,75,.16); color: #f0c775; }
   [data-theme="dark"] .rep-list-row { border-top-color: #26336a; }
@@ -2833,6 +2852,21 @@
         <div class="bi-stat-head"><div class="bi-stat-label">Pallets programados (mes)</div></div>
         <div class="bi-stat-value" id="rep-kpi-pallets">0</div>
       </div>
+      <div class="bi-stat-card" style="--mk-color:#8b5cf6;--mk-icon-bg:rgba(139,92,246,.16);" onclick="mostrarInfoTarjeta(this,event)"
+        data-info-title="Recibidas sin programar (mes)"
+        data-info-body="Recepciones cargadas en el TMS (Recepción de mercadería) del mes que estás viendo, cuyo proveedor no tenía una recepción programada ese día (ni hasta 3 días antes o después). En el calendario aparecen en violeta.">
+        <div class="bi-stat-head"><div class="bi-stat-label">Recibidas sin programar (mes)</div></div>
+        <div class="bi-stat-value" id="rep-kpi-noprog" style="color:#8b5cf6">—</div>
+      </div>
+    </div>
+
+    <div class="card" id="rep-cmp-card">
+      <div class="card-title"><span class="dot" style="background:#8b5cf6"></span>Programado vs. recibido (TMS)
+        <span class="info-ico" onclick="mostrarInfoTarjeta(this,event)"
+          data-info-title="Programado vs. recibido"
+          data-info-body="Cruza, del mes que estás viendo, las recepciones programadas con las recepciones que se cargaron en el TMS (Recepción de mercadería, foto del remito). Se emparejan por proveedor y fecha (el mismo día, o hasta 3 días de diferencia si el camión se adelantó o atrasó). Verde: programada y recibida. Violeta: recibida en el TMS pero no estaba programada. Naranja: programada, ya pasó la fecha y no hay recepción en el TMS. Gris: programada para más adelante.">ⓘ</span>
+      </div>
+      <div id="rep-cmp-body"><p style="color:var(--text3);font-size:13px;">Cargando recepciones del TMS…</p></div>
     </div>
 
     <div class="card">
@@ -12790,11 +12824,107 @@ function repDeliveriesFor(iso) {
   return recepcionesProg.filter(r => r.fecha === iso).sort((a,b) => (a.proveedor||'').localeCompare(b.proveedor||''));
 }
 
+// ===== 2026-11-25: PROGRAMADO vs. RECIBIDO (recepciones del TMS) =====
+// Lee del TMS (hojaruta/datos/recepciones) las recepciones del mes visible (una consulta por mes, se refresca cada 3 min)
+// y las cruza con las programadas por proveedor + fecha. No escribe nada: solo muestra.
+const REP_TMS = {};           // 'aaaa-mm' -> { at, lista, cargando, error }
+let repCmpFiltro = 'todas';
+function repTmsMes(prefijo) {
+  const c = REP_TMS[prefijo];
+  if (c && (c.cargando || Date.now() - c.at < 180000)) return c;
+  REP_TMS[prefijo] = Object.assign(c || { lista: null }, { cargando: true, at: Date.now() });
+  (async () => {
+    const t0 = Date.now();
+    while (!window.__tmsFs && Date.now() - t0 < 15000) await new Promise(r => setTimeout(r, 300));
+    const x = REP_TMS[prefijo];
+    try {
+      if (!window.__tmsFs) throw new Error('sin conexión al TMS');
+      const snap = await window.__tmsFs.collection('hojaruta/datos/recepciones').where('fecha', '>=', prefijo + '-01').where('fecha', '<=', prefijo + '-31').get();
+      x.lista = snap.docs.map(d => Object.assign({ id: d.id }, d.data())); x.error = null;
+    } catch (e) { console.error('Recepciones TMS', e); x.error = e.message || String(e); }
+    x.cargando = false; x.at = Date.now();
+    const p = repMesActual.getFullYear() + '-' + String(repMesActual.getMonth() + 1).padStart(2, '0');
+    if (p === prefijo) { repRender(); repRefrescarOverlayDia(); }
+  })();
+  return REP_TMS[prefijo];
+}
+const REP_STOP = new Set(['SA','S','A','SRL','SAIC','SACI','SAC','SAS','CIA','DE','DEL','LA','LAS','LOS','EL','Y','E','HNOS','HERMANOS','HIJOS','ARG','ARGENTINA','DISTRIBUIDORA','DISTRIBUCIONES','INDUSTRIAS','COOP','GRUPO']);
+function repProvTokens(p) {
+  return String(p || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/[^A-Z0-9 ]+/g, ' ').split(/\s+/).filter(t => t.length >= 3 && !REP_STOP.has(t));
+}
+function repMismoProv(a, b) {
+  const A = repProvTokens(a), B = repProvTokens(b);
+  const ca = String(a || "").normalize("NFD").replace(/[^A-Za-z0-9]+/g, "").toUpperCase(), cb = String(b || "").normalize("NFD").replace(/[^A-Za-z0-9]+/g, "").toUpperCase();
+  if (ca.length >= 3 && cb.length >= 3 && (ca.startsWith(cb) || cb.startsWith(ca))) return true; // abreviados: «SC J» = «SC JOHNSON»
+  if (!A.length || !B.length) return false;
+  const ja = A.join(' '), jb = B.join(' ');
+  if (ja === jb || ja.includes(jb) || jb.includes(ja)) return true;
+  return A.some(t => t.length >= 4 && B.includes(t));
+}
+function repDifDias(a, b) { return Math.abs((Date.parse(a + 'T00:00:00') - Date.parse(b + 'T00:00:00')) / REP_DAY_MS); }
+/** cruce del mes: { ok, noprog, falta, futura, porProg:{idProg->recTMS}, cargado, error } */
+function repCruce(prefijo) {
+  const c = repTmsMes(prefijo), hoy = repHoyStr();
+  const prog = recepcionesProg.filter(r => (r.fecha || '').startsWith(prefijo));
+  const tms = (c.lista || []).filter(r => (r.fecha || '').startsWith(prefijo));
+  const porProg = {}, usado = new Set();
+  [0, 3].forEach(tol => prog.forEach(p => {
+    if (porProg[p.id]) return;
+    const cand = tms.filter(t => !usado.has(t.id) && repDifDias(t.fecha, p.fecha) <= tol && repMismoProv(t.proveedor, p.proveedor))
+      .sort((a, b) => repDifDias(a.fecha, p.fecha) - repDifDias(b.fecha, p.fecha));
+    if (cand.length) { porProg[p.id] = cand[0]; usado.add(cand[0].id); }
+  }));
+  const ok = prog.filter(p => porProg[p.id]);
+  const sinRec = prog.filter(p => !porProg[p.id]);
+  return { ok, porProg, noprog: tms.filter(t => !usado.has(t.id)), falta: sinRec.filter(p => p.fecha < hoy && p.estado !== 'Cumplido'),
+    futura: sinRec.filter(p => p.fecha >= hoy || p.estado === 'Cumplido'), cargado: !!c.lista, error: c.error };
+}
+function repDepTxt(d) { const s = String(d || '').trim(); return s ? s.replace(/deposito/i, 'Dep.').replace(/parque logistico/i, 'Parque Log.') : ''; }
+function repRecTxt(t) {
+  return [t.remitoNro ? 'Remito ' + t.remitoNro : '', (Number(t.pallets) || 0) + ' pl', repDepTxt(t.deposito), t.firmado === false ? 'sin firma' : ''].filter(Boolean).join(' · ');
+}
+function repRenderComparativa(X) {
+  const elK = document.getElementById('rep-kpi-noprog');
+  if (elK) elK.textContent = X.cargado ? X.noprog.length : (X.error ? '—' : '…');
+  const body = document.getElementById('rep-cmp-body');
+  if (!body) return;
+  if (!X.cargado) { body.innerHTML = '<p style="color:var(--text3);font-size:13px;">' + (X.error ? 'No se pudieron leer las recepciones del TMS (' + repEsc(X.error) + ').' : 'Cargando recepciones del TMS…') + '</p>'; return; }
+  const filas = [];
+  X.ok.forEach(p => filas.push({ k: 'ok', f: p.fecha, prov: p.proveedor, prog: p, rec: X.porProg[p.id] }));
+  X.noprog.forEach(t => filas.push({ k: 'noprog', f: t.fecha, prov: t.proveedor, rec: t }));
+  X.falta.forEach(p => filas.push({ k: 'falta', f: p.fecha, prov: p.proveedor, prog: p }));
+  X.futura.forEach(p => filas.push({ k: 'futura', f: p.fecha, prov: p.proveedor, prog: p }));
+  filas.sort((a, b) => a.f === b.f ? String(a.prov || '').localeCompare(String(b.prov || '')) : a.f.localeCompare(b.f));
+  const EST = { ok: 'Programada y recibida', noprog: 'Recibida sin programar', falta: 'Programada, no llegó', futura: 'Programada · por llegar' };
+  const palR = L => L.reduce((s, t) => s + (Number(t.pallets) || 0), 0);
+  const chip = (v, n, txt, c) => '<button type="button" class="rep-cmp-chip' + (repCmpFiltro === v ? ' on' : '') + '" style="--c:' + c + '" onclick="repCmpFiltro=\'' + v + '\';repRender()"><b>' + n + '</b><span>' + txt + '</span></button>';
+  const recProgPal = palR(X.ok.map(p => X.porProg[p.id]));
+  let h = '<div class="rep-cmp-chips">'
+    + chip('todas', X.ok.length + X.noprog.length, 'Recibidas en total (TMS) · ' + (recProgPal + palR(X.noprog)) + ' pl', '#1a3a6b')
+    + chip('ok', X.ok.length, 'Programadas y recibidas · ' + recProgPal + ' pl', '#38a169')
+    + chip('noprog', X.noprog.length, 'Recibidas sin programar · ' + palR(X.noprog) + ' pl', '#8b5cf6')
+    + chip('falta', X.falta.length, 'Programadas que no llegaron', '#e67e22')
+    + '</div>';
+  const vis = filas.filter(r => repCmpFiltro === 'todas' || r.k === repCmpFiltro);
+  if (!vis.length) return body.innerHTML = h + '<p style="color:var(--text3);font-size:13px;">No hay recepciones en este grupo para el mes.</p>';
+  h += '<div style="overflow-x:auto"><table class="rep-cmp-tbl"><thead><tr><th>Fecha</th><th>Proveedor</th><th>Programado</th><th>Recibido (TMS)</th><th>Estado</th></tr></thead><tbody>'
+    + vis.map(r => '<tr class="' + r.k + '"><td style="white-space:nowrap">' + repDisplayDate(r.f) + (r.rec && r.prog && r.rec.fecha !== r.prog.fecha ? '<div class="rep-cmp-sub">llegó ' + repDisplayDate(r.rec.fecha) + '</div>' : '') + '</td>'
+      + '<td><strong>' + repEsc(r.prog ? r.prog.proveedor : r.rec.proveedor) + '</strong>' + (r.prog && r.rec && String(r.rec.proveedor || '').trim().toUpperCase() !== String(r.prog.proveedor || '').trim().toUpperCase() ? '<div class="rep-cmp-sub">en el TMS: ' + repEsc(r.rec.proveedor) + '</div>' : '') + '</td>'
+      + '<td>' + (r.prog ? (Number(r.prog.pallets) || 0) + ' pl' + (r.prog.producto ? '<div class="rep-cmp-sub">' + repEsc(r.prog.producto) + '</div>' : '') : '<span class="rep-cmp-sub">— no estaba programada</span>') + '</td>'
+      + '<td>' + (r.rec ? repEsc(repRecTxt(r.rec)) : '<span class="rep-cmp-sub">' + (r.k === 'futura' ? 'todavía no' : r.prog.estado === 'Cumplido' ? 'marcada Cumplido, sin remito en el TMS' : 'sin recepción en el TMS') + '</span>') + '</td>'
+      + '<td><span class="rep-cmp-est ' + r.k + '">' + EST[r.k] + '</span></td></tr>').join('')
+    + '</tbody></table></div>';
+  body.innerHTML = h;
+}
+
 function repRender() {
   const label = document.getElementById('rep-mes-label');
   if (label) label.textContent = REP_MESES[repMesActual.getMonth()] + ' ' + repMesActual.getFullYear();
+  const pfx = repMesActual.getFullYear() + '-' + String(repMesActual.getMonth() + 1).padStart(2, '0');
+  window.__repX = repCruce(pfx);
   if (repVista === 'calendario') repRenderCalendario(); else repRenderLista();
   repRenderCumplimiento();
+  repRenderComparativa(window.__repX);
 }
 
 // KPIs + donut de cumplimiento del mes visible (repMesActual) — mismos
@@ -12840,6 +12970,8 @@ function repRenderCalendario() {
     const iso = repFmt(cellDate);
     const inMonth = cellDate.getMonth() === month;
     const dayItems = repDeliveriesFor(iso);
+    const X = window.__repX || { porProg: {}, noprog: [] };
+    const extras = X.noprog.filter(t => t.fecha === iso);
 
     const cell = document.createElement('div');
     cell.className = 'rep-day-cell' + (inMonth ? '' : ' other-month') + (iso === hoy ? ' today' : '');
@@ -12851,31 +12983,37 @@ function repRenderCalendario() {
     topRow.appendChild(num);
     cell.appendChild(topRow);
 
-    if (dayItems.length) {
+    if (dayItems.length || extras.length) {
       const totalPallets = dayItems.reduce((s,d) => s + Number(d.pallets||0), 0);
       const truckBadge = document.createElement('div');
       truckBadge.className = 'rep-truck-badge';
-      truckBadge.textContent = '' + dayItems.length;
+      truckBadge.textContent = '' + (dayItems.length + extras.length);
+      if (extras.length) truckBadge.title = dayItems.length + ' programada(s) + ' + extras.length + ' recibida(s) sin programar';
       topRow.appendChild(truckBadge);
 
       const badge = document.createElement('div');
       badge.className = 'rep-pallet-badge';
       badge.textContent = totalPallets + ' pl';
+      if (!dayItems.length) { badge.textContent = extras.reduce((s,t) => s + (Number(t.pallets)||0), 0) + ' pl'; badge.style.cssText = 'background:#ede4ff;color:#6d28d9'; badge.title = 'Pallets recibidos sin programar'; }
       cell.appendChild(badge);
 
       const stack = document.createElement('div');
       stack.className = 'rep-tag-stack';
       const maxShow = 3;
-      dayItems.slice(0, maxShow).forEach(d => {
+      const todos = dayItems.map(d => ({ d })).concat(extras.map(t => ({ t })));
+      todos.slice(0, maxShow).forEach(({ d, t }) => {
         const tag = document.createElement('div');
-        tag.className = 'rep-tag' + (d.estado === 'Cumplido' ? ' cumplido' : '');
-        tag.textContent = (d.estado === 'Cumplido' ? '✓ ' : '') + d.proveedor + (d.patente ? ' · ' + d.patente : '');
+        if (t) { tag.className = 'rep-tag noprog'; tag.textContent = '✚ ' + (t.proveedor || 'Sin proveedor'); tag.title = 'Recibida en el TMS sin estar programada · ' + repRecTxt(t); }
+        else { const rec = X.porProg[d.id], ok = d.estado === 'Cumplido' || !!rec;
+          tag.className = 'rep-tag' + (ok ? ' cumplido' : '');
+          tag.textContent = (ok ? '✓ ' : '') + d.proveedor + (d.patente ? ' · ' + d.patente : '');
+          if (rec) tag.title = 'Recibida en el TMS · ' + repRecTxt(rec); }
         stack.appendChild(tag);
       });
-      if (dayItems.length > maxShow) {
+      if (todos.length > maxShow) {
         const more = document.createElement('div');
         more.className = 'rep-day-more';
-        more.textContent = '+' + (dayItems.length - maxShow) + ' más';
+        more.textContent = '+' + (todos.length - maxShow) + ' más';
         stack.appendChild(more);
       }
       cell.appendChild(stack);
@@ -13036,12 +13174,21 @@ function repFilaDia(item) {
   return `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;background:#f5f8ff;border:1px solid #dde1e9;border-radius:8px;padding:9px 12px;margin-bottom:8px;">
       <div style="flex:1;min-width:0;">
         <strong style="color:var(--portal-navy);">${repEsc(item.proveedor)}</strong>${item.patente ? ' · '+repEsc(item.patente) : ''}
-        <div style="color:var(--text3);font-size:11.5px;margin-top:2px;">${repEsc(item.producto)} · ${repEsc(item.usuario||'—')}</div>
+        <div style="color:var(--text3);font-size:11.5px;margin-top:2px;">${repEsc(item.producto)} · ${repEsc(item.usuario||'—')}</div>${(window.__repX && window.__repX.porProg[item.id]) ? '<div style="color:#276749;font-size:11.5px;margin-top:2px;font-weight:600;">✓ Recibida en el TMS: '+repEsc(repRecTxt(window.__repX.porProg[item.id]))+'</div>' : ''}
       </div>
       <div style="font-family:'IBM Plex Mono',monospace;color:#276749;font-weight:600;">${repEsc(String(item.pallets))} pl</div>
       <button class="rep-estado-badge ${estado==='Cumplido'?'cumplido':'pendiente'}" onclick="repToggleEstado('${item.id}'); repRefrescarOverlayDia();">${estado==='Cumplido' ? '✓ Cumplido' : '○ Pendiente'}</button>
       <button class="btn btn-ghost btn-sm" onclick="repEliminar('${item.id}'); repRefrescarOverlayDia();">✕</button>
     </div>`;
+}
+
+function repExtrasDiaHtml(iso) {
+  const L = ((window.__repX || {}).noprog || []).filter(t => t.fecha === iso);
+  if (!L.length) return '';
+  return '<div style="margin-top:14px;font-size:11.5px;font-weight:700;color:#6d28d9;text-transform:uppercase;letter-spacing:.4px;">Recibidas sin programar (TMS) · ' + L.length + '</div>'
+    + L.map(t => '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;background:#f1e8ff;border:1px solid #cdb6fb;border-left:4px solid #8b5cf6;border-radius:8px;padding:9px 12px;margin-top:8px;">'
+      + '<div style="flex:1;min-width:0;"><strong style="color:#6d28d9;">' + repEsc(t.proveedor || 'Sin proveedor') + '</strong><div style="color:var(--text3);font-size:11.5px;margin-top:2px;">' + repEsc(repRecTxt(t)) + '</div></div>'
+      + '<span class="rep-cmp-est noprog">No programada</span></div>').join('');
 }
 
 function repAbrirDia(iso) {
@@ -13064,7 +13211,7 @@ function repAbrirDia(iso) {
         <div style="font-size:16px;font-weight:700;color:var(--portal-navy);">${weekday} ${repDisplayDate(iso)}${items.length ? ' <span style="font-size:11.5px;font-weight:600;color:#1a3a6b;">· '+items.length+' camión(es)</span>' : ''}</div>
         <button onclick="document.getElementById('rep-dia-overlay').remove()" style="background:none;border:none;font-size:20px;color:var(--text3);cursor:pointer;">×</button>
       </div>
-      <div id="rep-dia-overlay-rows" style="margin:16px 0;">${rowsHtml}</div>
+      <div id="rep-dia-overlay-rows" style="margin:16px 0;">${rowsHtml}${repExtrasDiaHtml(iso)}</div>
       <div style="display:flex;justify-content:flex-end;">
         <button class="btn btn-primary btn-sm" onclick="document.getElementById('rep-dia-overlay').remove(); repAbrirForm('${iso}');">+ Agregar recepción</button>
       </div>
@@ -13078,7 +13225,7 @@ function repRefrescarOverlayDia() {
   const rows = document.getElementById('rep-dia-overlay-rows');
   if (!rows) return;
   const items = repDeliveriesFor(repDiaSeleccionado);
-  rows.innerHTML = items.length ? items.map(repFilaDia).join('') : '<p style="color:var(--text3);font-size:13px;padding:12px 0;">No hay recepciones programadas para este día.</p>';
+  rows.innerHTML = (items.length ? items.map(repFilaDia).join('') : '<p style="color:var(--text3);font-size:13px;padding:12px 0;">No hay recepciones programadas para este día.</p>') + repExtrasDiaHtml(repDiaSeleccionado);
 }
 
 // ---- Recordatorios por correo (mailto — sin backend) ----
