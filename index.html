@@ -1084,7 +1084,7 @@
   .rep-weekday-row{display:grid;grid-template-columns:repeat(7,1fr);background:var(--surface2);border:1px solid var(--border);border-bottom:none;border-radius:var(--radius-md) var(--radius-md) 0 0;overflow:hidden;}
   .rep-weekday-row div{padding:8px 0;text-align:center;font-size:10.5px;font-weight:700;letter-spacing:1px;color:var(--portal-navy);text-transform:uppercase;}
   .rep-cal-grid{display:grid;grid-template-columns:repeat(7,1fr);border:1px solid var(--border);border-top:none;border-radius:0 0 var(--radius-md) var(--radius-md);overflow:hidden;}
-  .rep-day-cell{min-height:96px;min-width:0;border-right:1px solid var(--border);border-bottom:1px solid var(--border);padding:7px;cursor:pointer;position:relative;transition:background .12s;display:flex;flex-direction:column;gap:4px;overflow:hidden;background:var(--surface);}
+  .rep-day-cell{min-height:170px;min-width:0;border-right:1px solid var(--border);border-bottom:1px solid var(--border);padding:7px;cursor:pointer;position:relative;transition:background .12s;display:flex;flex-direction:column;gap:4px;overflow:hidden;background:var(--surface);}
   .rep-day-cell:hover{background:var(--surface2);}
   .rep-day-cell.other-month{opacity:.35;}
   .rep-day-cell.today{background:oklch(0.4718 0.161 262.64 / .05);}
@@ -1115,6 +1115,13 @@
   .rep-cmp-est.ok{background:#e6f4ed;color:#276749}.rep-cmp-est.noprog{background:#ede4ff;color:#6d28d9}.rep-cmp-est.falta{background:#fdebd8;color:#b45309}.rep-cmp-est.futura{background:#eef0f4;color:#5a6478}
   .rep-cmp-sub{color:var(--text3);font-size:11px}
   .rep-day-more{font-size:10px;color:var(--text3);font-weight:600;}
+  /* 2026-11-25: celdas más grandes, se ven todos los camiones y abajo el total recibido del día */
+  .rep-cal-grid .rep-tag{font-size:10.5px;padding:3px 6px;}
+  .rep-recib{margin-top:auto;display:flex;flex-direction:column;gap:1px;padding:5px 7px;border-radius:6px;background:#e6f4ed;color:#276749;border:1px solid #b7e0c8}
+  .rep-recib b{font-size:13px;font-weight:800;letter-spacing:.2px}.rep-recib span{font-size:9.5px;font-weight:600;opacity:.9}
+  .rep-recib.cero{background:#fdebd8;color:#b45309;border-color:#f6c99a}
+  [data-theme="dark"] .rep-recib{background:rgba(72,187,120,.16);color:#7fdba0;border-color:rgba(72,187,120,.35)}
+  [data-theme="dark"] .rep-recib.cero{background:rgba(230,126,34,.16);color:#f6b27a;border-color:rgba(230,126,34,.35)}
   .rep-pallet-badge{position:absolute;top:6px;right:6px;background:#e6f4ed;color:#276749;font-size:9.5px;font-weight:700;border-radius:20px;padding:1px 6px;font-family:'IBM Plex Mono',monospace;}
   .rep-truck-badge{background:#e8f0fb;color:#1a3a6b;font-size:9.5px;font-weight:700;border-radius:20px;padding:1px 6px;font-family:'IBM Plex Mono',monospace;white-space:nowrap;line-height:1.5;}
   .rep-estado-badge{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:700;letter-spacing:.3px;padding:3px 9px;border-radius:20px;cursor:pointer;border:none;font-family:'IBM Plex Sans',sans-serif;white-space:nowrap;}
@@ -13017,8 +13024,9 @@ function repRenderCalendario() {
       const totalPallets = dayItems.reduce((s,d) => s + Number(d.pallets||0), 0);
       const truckBadge = document.createElement('div');
       truckBadge.className = 'rep-truck-badge';
-      truckBadge.textContent = '' + (dayItems.length + extras.length);
-      if (extras.length) truckBadge.title = dayItems.length + ' programada(s) + ' + extras.length + ' recibida(s) sin programar';
+      truckBadge.textContent = '' + dayItems.length;
+      truckBadge.title = dayItems.length + ' programada(s)';
+      if (!dayItems.length) truckBadge.style.display = 'none';
       topRow.appendChild(truckBadge);
 
       const badge = document.createElement('div');
@@ -13029,7 +13037,7 @@ function repRenderCalendario() {
 
       const stack = document.createElement('div');
       stack.className = 'rep-tag-stack';
-      const maxShow = 3;
+      const maxShow = 12;
       const todos = dayItems.map(d => ({ d })).concat(extras.map(t => ({ t })));
       todos.slice(0, maxShow).forEach(({ d, t }) => {
         const tag = document.createElement('div');
@@ -13047,6 +13055,17 @@ function repRenderCalendario() {
         stack.appendChild(more);
       }
       cell.appendChild(stack);
+      // total de camiones RECIBIDOS ese día (programados que llegaron + los que llegaron sin programar)
+      const recProg = dayItems.filter(d => X.porProg[d.id]).length;
+      const recTot = recProg + extras.length;
+      if (recTot || (dayItems.length && iso < hoy && X.cargado)) {
+        const rb = document.createElement('div');
+        rb.className = 'rep-recib' + (recTot ? '' : ' cero');
+        rb.innerHTML = '<b>🚚 Recibidos: ' + recTot + '</b><span>' + (recTot
+          ? recProg + ' programado' + (recProg === 1 ? '' : 's') + (extras.length ? ' + ' + extras.length + ' sin programar' : '')
+          : 'de ' + dayItems.length + ' programado' + (dayItems.length === 1 ? '' : 's')) + '</span>';
+        cell.appendChild(rb);
+      }
     }
 
     cell.addEventListener('click', () => repAbrirDia(iso));
