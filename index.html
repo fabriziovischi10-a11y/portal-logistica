@@ -2951,8 +2951,17 @@
           <input type="date" id="rep_fecha">
         </div>
         <div class="form-group">
-          <label>Proveedor</label>
-          <input type="text" id="rep_proveedor" list="rep-proveedores-list" placeholder="Ej: Molinos Río de la Plata" autocomplete="off">
+          <label style="display:flex;justify-content:space-between;align-items:center;gap:8px">Proveedor <button type="button" class="btn btn-ghost btn-sm" style="padding:2px 9px;font-size:11px" onclick="repNuevoProvAbrir()">+ Nuevo proveedor</button></label>
+          <input type="text" id="rep_proveedor" list="rep-proveedores-list" placeholder="Ej: Molinos Río de la Plata" autocomplete="off" oninput="repProvHint()">
+          <div id="rep-prov-hint" style="font-size:11px;margin-top:4px;display:none"></div>
+          <div id="rep-prov-nuevo" style="display:none;margin-top:8px;padding:10px;border:1px dashed var(--accent3);border-radius:8px">
+            <div style="font-size:11.5px;font-weight:700;margin-bottom:6px">Alta de proveedor nuevo</div>
+            <input type="text" id="rep_prov_nuevo_nombre" placeholder="Nombre del proveedor" autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault();repNuevoProvCrear()}">
+            <div style="display:flex;gap:6px;margin-top:8px;justify-content:flex-end">
+              <button type="button" class="btn btn-ghost btn-sm" onclick="repNuevoProvCerrar()">Cancelar</button>
+              <button type="button" class="btn btn-primary btn-sm" onclick="repNuevoProvCrear()">Crear proveedor</button>
+            </div>
+          </div>
         </div>
         <div class="form-group">
           <label>Producto</label>
@@ -13221,9 +13230,32 @@ function repAbrirForm(fechaPrefill) {
 }
 function repCerrarForm() {
   document.getElementById('form-recepcion-prog').style.display = 'none';
+  repNuevoProvCerrar(); const ph = document.getElementById('rep-prov-hint'); if (ph) ph.style.display = 'none';
   ['rep_fecha','rep_proveedor','rep_producto','rep_pallets','rep_patente','rep_usuario'].forEach(id => {
     document.getElementById(id).value = '';
   });
+}
+
+// 2026-11-26: alta explícita de proveedores nuevos desde el formulario (quedan en recepciones_dep_proveedores y salen en la lista)
+function repProvExiste(nombre) { const k = String(nombre || '').trim().toLowerCase(); return !!k && REP_STATIC_PROVEEDORES.concat(repCustomProveedores).some(p => String(p).trim().toLowerCase() === k); }
+function repProvHint() {
+  const el = document.getElementById('rep-prov-hint'), v = document.getElementById('rep_proveedor').value.trim();
+  if (!el) return; if (!v || repProvExiste(v)) { el.style.display = 'none'; return; }
+  el.style.display = 'block'; el.style.color = 'var(--accent3)';
+  el.innerHTML = 'No está en la lista. <a href="#" onclick="event.preventDefault();repNuevoProvAbrir(document.getElementById(\'rep_proveedor\').value)">Crear «' + repEsc(v.toUpperCase()) + '» como proveedor nuevo</a>';
+}
+function repNuevoProvAbrir(pre) {
+  const box = document.getElementById('rep-prov-nuevo'), inp = document.getElementById('rep_prov_nuevo_nombre');
+  box.style.display = 'block'; inp.value = (pre || document.getElementById('rep_proveedor').value || '').trim().toUpperCase(); inp.focus();
+}
+function repNuevoProvCerrar() { document.getElementById('rep-prov-nuevo').style.display = 'none'; }
+function repNuevoProvCrear() {
+  const inp = document.getElementById('rep_prov_nuevo_nombre'), nombre = inp.value.trim().toUpperCase().replace(/\s+/g, ' ');
+  if (nombre.length < 2) { toast('Escribí el nombre del proveedor', 'error'); inp.focus(); return; }
+  const sel = () => { document.getElementById('rep_proveedor').value = nombre; repNuevoProvCerrar(); repProvHint(); document.getElementById('rep_producto').focus(); };
+  if (repProvExiste(nombre)) { toast('Ese proveedor ya existe: quedó elegido'); sel(); return; }
+  fbSaveRecepcionProveedor(nombre).then(() => { repPoblarDatalist(); sel(); toast('✓ Proveedor «' + nombre + '» creado'); })
+    .catch(() => { repCustomProveedores = repCustomProveedores.filter(p => p !== nombre); toast('No se pudo crear el proveedor. Revisá la conexión.', 'error'); });
 }
 
 function repGuardar() {
